@@ -34,34 +34,6 @@ Run
 yarn local
 ```
 
-# Deploy system
-
-Run
-
-```
-npx hardhat --network <network> deploy:default
-```
-
-# Copy Types and ABI's
-
-### Copy All
-
-```shell
-task copy-all
-```
-
-### Copy ABI's
-
-```shell
-task copy-abis
-```
-
-### Copy Types
-
-```shell
-task copy-types
-```
-
 # Acknowledgements
 
 | Protocol Authors    |
