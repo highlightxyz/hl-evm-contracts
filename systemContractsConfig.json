@@ -1,0 +1,144 @@
+{
+  "__chainIdToNetworkName": {
+    "5": "goerli",
+    "1337": "localhost",
+    "80001": "polygon-mumbai",
+    "137": "polygon-mainnet",
+    "1": "mainnet",
+    "42161": "arbitrum",
+    "421613": "arbitrum-goerli",
+    "10": "optimism",
+    "420": "optimism-goerli",
+    "84531": "base-goerli"
+  },
+  "CollectionFactory": {
+    "5": "0x03E16f643A202669cAA80A957e0eeD1cB808d865",
+    "1337": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+    "80001": "0x53547867Cf5164E322E3f2Db62c7Ba3DEF7Cb932",
+    "137": "0x4730Cc376C1743839b6B68A09Ef2b979d2ff9577",
+    "1": "0xFAd107F688301db69e99693e00D1D891c44a0913"
+  },
+  "MintManager": {
+    "5": "0xBF6B4F9Ef1E4B371c40701b5f856F9Fc1d659c70",
+    "1337": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "80001": "0x2C92212426Ea6E41C894F8db3bEb1E6f4991c75c",
+    "137": "0xfbb65C52f439B762F712026CF6DD7D8E82F81eb9",
+    "1": "0x1bf979282181f2b7a640d17aB5D2e25125F2de5e",
+    "42161": "",
+    "421613": "",
+    "10": "",
+    "420": "",
+    "84531": ""
+  },
+  "EditionsMetadataRenderer": {
+    "5": "0xeA2fC80731D96D57Cf80E8643f7DF35C055A0e85",
+    "1337": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+    "80001": "0x77834F55641F13e03951088ADFb54a377A873308",
+    "137": "0x32c56B178cAA486177ee9A942611A2f8844872f5",
+    "1": "0x6dc049e267f78ef06b83954F557A205366d45691",
+    "42161": "",
+    "421613": "",
+    "10": "",
+    "420": "",
+    "84531": ""
+  },
+  "NonTransferableTokenManager": {
+    "5": "0x2ac592Eb32fe61EFFd57Ac0A681Fe24E87e3069c",
+    "1337": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+    "80001": "0x3861f9F623611C27b2614873BBB74635c21ffaA7",
+    "137": "0x481f9289257795bbC5Cc9bab8c986D3377450331",
+    "1": "0x734ACE995eaE06cFCBfE6cc33e0F524ab27e4ac1",
+    "42161": "",
+    "421613": "",
+    "10": "",
+    "420": "",
+    "84531": ""
+  },
+  "AuctionManager": {
+    "5": "0xa94310AeeD50687f7c39ACdAA5FCd311AEDB25f8",
+    "1337": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "80001": "0xF9FEf499aDF4550FA87C63E1111C8a0531DF45a1",
+    "137": "0x3CEDCb3170489f2FB509DB23D8A864A55B45036F",
+    "1": "0x3216FB0105f64cC375E2f431d1a6D00A1A955559",
+    "42161": "",
+    "421613": "",
+    "10": "",
+    "420": "",
+    "84531": ""
+  },
+  "CheckerboardTokenManager": {
+    "1": "0x778b5ef98f0C8803F6424bB07412489b2Fbd58B3"
+  },
+  "ERC721EditionsImplementation": {
+    "5": "0x5e08F4600539fa5c4AaE1d430B8C59a88Cbd7D8F",
+    "1337": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+    "80001": "0xFa3F90d7ee5A6476388Aef162914eb9F9ada97F6",
+    "137": "0x494928c627216140019d14A10071D92d97e0eFf5",
+    "1": "0x9fA3eA2B36fed5803Ca743E09fEd3204E2B59866",
+    "42161": "",
+    "421613": "",
+    "10": "",
+    "420": "",
+    "84531": ""
+  },
+  "ERC721SingleEditionImplementation": {
+    "5": "0x7AF8eA1824633F7848e67BBB36941572C785F256",
+    "1337": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "80001": "0x3Cd3662D95faB269268680ebf69C740B7a5D9f5c",
+    "137": "0x725CbF9E82735b834383a0525c43c46971A2eFA5",
+    "1": "0xc111b1033DC8f32d85c152D7ac89C4311344D77D",
+    "42161": "",
+    "421613": "",
+    "10": "",
+    "420": "",
+    "84531": ""
+  },
+  "ERC721GeneralImplementation": {
+    "5": "0x098bc03aE50De80AF5004BA76db891267cd01aFE",
+    "1337": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+    "80001": "0x83d02Ce6f18517Ad9506484ec953AEf4EB9928E8",
+    "137": "0x3F8E36dA5cdF36967D3e3AC38FE4D3B149bb1FBc",
+    "1": "0x21c3a69EaD9b81863B83757ff2645803fF7c7690",
+    "42161": "",
+    "421613": "",
+    "10": "",
+    "420": "",
+    "84531": ""
+  },
+  "ERC721GenerativeImplementation": {
+    "5": "0xD0B01D34Efd5855281d66559b8F2074835eBe93C",
+    "1337": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+    "80001": "0x3F4c832b176617E01c390665149CF19524BF304E",
+    "137": "0x1573163eF0635F72C93bB56CE3b30116059c0b27",
+    "1": "0xdE64E3A2CC948E9C4Df8EDF8083DCabdc9dCE285",
+    "42161": "",
+    "421613": "",
+    "10": "",
+    "420": "",
+    "84531": ""
+  },
+  "MinimalForwarder": {
+    "5": "0x4905B2ee259994F664d443e740bC2cA1d9cf2f1D",
+    "1337": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "80001": "0xD66A0f91BAFD0Fd6b7503ff97E028c9B54a7001f",
+    "137": "0x03214f1434D84Dd58FcDFc339577c1B3a7Dd9BdE",
+    "1": "0x7Ab179690168f06D4F897A6C0b749C1524F4C772",
+    "42161": "",
+    "421613": "",
+    "10": "",
+    "420": "",
+    "84531": ""
+  },
+  "Observability": {
+    "5": "0xFfEc25843068E69CAA0E36eA004D7749bD9EfB19",
+    "1337": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+    "80001": "0x74A07B1F2B1d1Dec82341F18959cfb8B89353c87",
+    "137": "0x43Ef6CB43586B4B3ce0F4b728D4AE08dD30a0d1e",
+    "1": "0xD21cf74A08CEb52555702658d3556300B0983158",
+    "42161": "",
+    "421613": "",
+    "10": "",
+    "420": "",
+    "84531": ""
+  }
+}

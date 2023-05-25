@@ -1,0 +1,44 @@
+name: Continous Integration
+
+env:
+  INFURA_API_KEY: dummy
+
+on: push
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Check out the repo"
+        uses: "actions/checkout@v3"
+
+      - name: "Install Node.js"
+        uses: "actions/setup-node@v3"
+        with:
+          cache: "yarn"
+          node-version: "16"
+
+      - name: "Initialize accounts.json"
+        run: "cp sample.accounts.json accounts.json"
+
+      - name: "Set up permission to Github Packages"
+        run: |
+          npm config set //npm.pkg.github.com/:_authToken ${{ secrets.READ_GITHUB_PACKAGES_TOKEN }}
+          yarn config list
+
+      - name: "Install the dependencies"
+        run: "yarn install --immutable"
+
+      - name: "Lint the code"
+        run: "yarn lint"
+
+      - name: "Add lint summary"
+        run: |
+          echo "## Lint results" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+
+      - name: "Compile the contracts and generate the TypeChain bindings"
+        run: "yarn typechain"
+
+      - name: "Test the contracts (each file separately, temporarily and without a coverage report)"
+        run: "yarn test:separate"

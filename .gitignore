@@ -1,0 +1,19 @@
+node_modules/
+.env
+.npmrc
+coverage
+coverage.json
+typechain
+
+#Hardhat files
+cache
+artifacts
+accounts.json
+
+#Editors
+.idea
+types
+
+.yalc
+yalc.lock
+yarn-error.log
