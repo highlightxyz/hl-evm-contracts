@@ -1,8 +1,15 @@
+import {
+  ERC721SingleEdition,
+  EditionsMetadataRenderer,
+  MinimalForwarder,
+  MintManager,
+  Observability,
+} from "@highlightxyz/libnode/contracts/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-import { ERC721SingleEdition, EditionsMetadataRenderer, MinimalForwarder, MintManager, Observability } from "../types";
+import { Errors } from "./__utils__/data";
 import { setupSingleEdition, setupSystem } from "./__utils__/helpers";
 
 describe("ERC721SingleEdition functionality", () => {
@@ -69,17 +76,26 @@ describe("ERC721SingleEdition functionality", () => {
       it("Non minter cannot call", async function () {
         editions = editions.connect(fan1);
 
-        await expect(editions.mintOneToRecipient(0, fan1.address)).to.be.revertedWith("Not minter");
+        await expect(editions.mintOneToRecipient(0, fan1.address)).to.be.revertedWithCustomError(
+          editions,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint on non-existent edition", async function () {
-        await expect(editions.mintOneToRecipient(1, fan1.address)).to.be.revertedWith("Edition doesn't exist");
+        await expect(editions.mintOneToRecipient(1, fan1.address)).to.be.revertedWithCustomError(
+          editions,
+          Errors.EditionDoesNotExist,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(editions.freezeMints()).to.emit(editions, "MintsFrozen");
 
-        await expect(editions.mintOneToRecipient(0, fan1.address)).to.be.revertedWith("Mint frozen");
+        await expect(editions.mintOneToRecipient(0, fan1.address)).to.be.revertedWithCustomError(
+          editions,
+          Errors.MintFrozen,
+        );
       });
 
       it("Can mint validly up until max supply", async function () {
@@ -107,7 +123,10 @@ describe("ERC721SingleEdition functionality", () => {
           expect(res[0][0][3].toNumber()).to.equal(1);
         }
 
-        await expect(editions.mintOneToRecipient(0, fan1.address)).to.be.revertedWith("Sold out");
+        await expect(editions.mintOneToRecipient(0, fan1.address)).to.be.revertedWithCustomError(
+          editions,
+          Errors.SoldOut,
+        );
       });
     });
 
@@ -115,21 +134,33 @@ describe("ERC721SingleEdition functionality", () => {
       it("Non minter cannot call", async function () {
         editions = editions.connect(fan1);
 
-        await expect(editions.mintAmountToRecipient(0, fan1.address, 2)).to.be.revertedWith("Not minter");
+        await expect(editions.mintAmountToRecipient(0, fan1.address, 2)).to.be.revertedWithCustomError(
+          editions,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint on non-existent edition", async function () {
-        await expect(editions.mintAmountToRecipient(1, fan1.address, 2)).to.be.revertedWith("Edition doesn't exist");
+        await expect(editions.mintAmountToRecipient(1, fan1.address, 2)).to.be.revertedWithCustomError(
+          editions,
+          Errors.EditionDoesNotExist,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(editions.freezeMints()).to.emit(editions, "MintsFrozen");
 
-        await expect(editions.mintAmountToRecipient(0, fan1.address, 2)).to.be.revertedWith("Mint frozen");
+        await expect(editions.mintAmountToRecipient(0, fan1.address, 2)).to.be.revertedWithCustomError(
+          editions,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint more than maxSupply, in multiple variations", async function () {
-        await expect(editions.mintAmountToRecipient(0, fan1.address, 6)).to.be.revertedWith("Sold out");
+        await expect(editions.mintAmountToRecipient(0, fan1.address, 6)).to.be.revertedWithCustomError(
+          editions,
+          Errors.SoldOut,
+        );
 
         await expect(editions.mintAmountToRecipient(0, fan1.address, 3))
           .to.emit(editions, "Transfer")
@@ -139,7 +170,10 @@ describe("ERC721SingleEdition functionality", () => {
           .to.emit(editions, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 3);
 
-        await expect(editions.mintAmountToRecipient(0, fan1.address, 3)).to.be.revertedWith("Sold out");
+        await expect(editions.mintAmountToRecipient(0, fan1.address, 3)).to.be.revertedWithCustomError(
+          editions,
+          Errors.SoldOut,
+        );
       });
 
       it("Minter can mint validly (simple variation)", async function () {
@@ -213,22 +247,34 @@ describe("ERC721SingleEdition functionality", () => {
       it("Non minter cannot call", async function () {
         editions = editions.connect(fan1);
 
-        await expect(editions.mintOneToRecipients(0, [fan1.address])).to.be.revertedWith("Not minter");
+        await expect(editions.mintOneToRecipients(0, [fan1.address])).to.be.revertedWithCustomError(
+          editions,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint on non-existent edition", async function () {
-        await expect(editions.mintOneToRecipients(1, [fan1.address])).to.be.revertedWith("Edition doesn't exist");
+        await expect(editions.mintOneToRecipients(1, [fan1.address])).to.be.revertedWithCustomError(
+          editions,
+          Errors.EditionDoesNotExist,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(editions.freezeMints()).to.emit(editions, "MintsFrozen");
 
-        await expect(editions.mintOneToRecipients(0, [fan1.address])).to.be.revertedWith("Mint frozen");
+        await expect(editions.mintOneToRecipients(0, [fan1.address])).to.be.revertedWithCustomError(
+          editions,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint more than maxSupply, in multiple variations", async function () {
         const recipientAddresses = [fan1.address, fan1.address, fan1.address, fan1.address, fan1.address, fan1.address];
-        await expect(editions.mintOneToRecipients(0, recipientAddresses)).to.be.revertedWith("Sold out");
+        await expect(editions.mintOneToRecipients(0, recipientAddresses)).to.be.revertedWithCustomError(
+          editions,
+          Errors.SoldOut,
+        );
 
         await expect(editions.mintOneToRecipients(0, recipientAddresses.slice(0, 3)))
           .to.emit(editions, "Transfer")
@@ -238,7 +284,10 @@ describe("ERC721SingleEdition functionality", () => {
           .to.emit(editions, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 3);
 
-        await expect(editions.mintOneToRecipients(0, recipientAddresses.slice(0, 3))).to.be.revertedWith("Sold out");
+        await expect(editions.mintOneToRecipients(0, recipientAddresses.slice(0, 3))).to.be.revertedWithCustomError(
+          editions,
+          Errors.SoldOut,
+        );
       });
 
       it("Minter can mint validly (simple variation)", async function () {
@@ -316,22 +365,34 @@ describe("ERC721SingleEdition functionality", () => {
       it("Non minter cannot call", async function () {
         editions = editions.connect(fan1);
 
-        await expect(editions.mintAmountToRecipients(0, [fan1.address], 2)).to.be.revertedWith("Not minter");
+        await expect(editions.mintAmountToRecipients(0, [fan1.address], 2)).to.be.revertedWithCustomError(
+          editions,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint on non-existent edition", async function () {
-        await expect(editions.mintAmountToRecipients(1, [fan1.address], 2)).to.be.revertedWith("Edition doesn't exist");
+        await expect(editions.mintAmountToRecipients(1, [fan1.address], 2)).to.be.revertedWithCustomError(
+          editions,
+          Errors.EditionDoesNotExist,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(editions.freezeMints()).to.emit(editions, "MintsFrozen");
 
-        await expect(editions.mintAmountToRecipients(0, [fan1.address], 2)).to.be.revertedWith("Mint frozen");
+        await expect(editions.mintAmountToRecipients(0, [fan1.address], 2)).to.be.revertedWithCustomError(
+          editions,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint more than maxSupply, in multiple variations", async function () {
         const recipientAddresses = [fan1.address, fan1.address, fan1.address];
-        await expect(editions.mintAmountToRecipients(0, recipientAddresses, 2)).to.be.revertedWith("Sold out");
+        await expect(editions.mintAmountToRecipients(0, recipientAddresses, 2)).to.be.revertedWithCustomError(
+          editions,
+          Errors.SoldOut,
+        );
 
         await expect(editions.mintAmountToRecipients(0, recipientAddresses.slice(0, 2), 2))
           .to.emit(editions, "Transfer")
@@ -343,14 +404,17 @@ describe("ERC721SingleEdition functionality", () => {
           .to.emit(editions, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 4);
 
-        await expect(editions.mintAmountToRecipients(0, recipientAddresses.slice(0, 2), 1)).to.be.revertedWith(
-          "Sold out",
-        );
+        await expect(
+          editions.mintAmountToRecipients(0, recipientAddresses.slice(0, 2), 1),
+        ).to.be.revertedWithCustomError(editions, Errors.SoldOut);
       });
 
       it("Minter can mint validly (simple variation)", async function () {
         const recipientAddresses = [fan1.address, fan1.address, fan1.address];
-        await expect(editions.mintAmountToRecipients(0, recipientAddresses, 2)).to.be.revertedWith("Sold out");
+        await expect(editions.mintAmountToRecipients(0, recipientAddresses, 2)).to.be.revertedWithCustomError(
+          editions,
+          Errors.SoldOut,
+        );
 
         await expect(editions.mintAmountToRecipients(0, recipientAddresses.slice(0, 2), 2))
           .to.emit(editions, "Transfer")
@@ -362,9 +426,9 @@ describe("ERC721SingleEdition functionality", () => {
           .to.emit(editions, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 4);
 
-        await expect(editions.mintAmountToRecipients(0, recipientAddresses.slice(0, 2), 2)).to.be.revertedWith(
-          "Sold out",
-        );
+        await expect(
+          editions.mintAmountToRecipients(0, recipientAddresses.slice(0, 2), 2),
+        ).to.be.revertedWithCustomError(editions, Errors.SoldOut);
       });
 
       it("Minter can mint validly (complex variation)", async function () {

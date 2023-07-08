@@ -27,6 +27,66 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /**
+     * @notice Throw when sender is unauthorized to complete action
+     */
+    error Unauthorized();
+
+    /**
+     * @notice Throw when the executor being added or removed is invalid
+     */
+    error InvalidExecutorChanged();
+
+    /**
+     * @notice Throw when the action being applied to the vector has been frozen
+     */
+    error VectorUpdateActionFrozen();
+
+    /**
+     * @notice Throw when the totalClaimedViaVector passed in is invalid
+     */
+    error InvalidTotalClaimed();
+
+    /**
+     * @notice Throw when an invalid allowlist proof is used, or a regular mint is attempted on an allowlist vector
+     */
+    error AllowlistInvalid();
+
+    /**
+     * @notice Throw when a native gas token payment is attempted on a payment packet mint
+     */
+    error CurrencyTypeInvalid();
+
+    /**
+     * @notice Throw when the mint fee sent is too low
+     */
+    error MintFeeTooLow();
+
+    /**
+     * @notice Throw when an internal transfer of ether fails
+     */
+    error EtherSendFailed();
+
+    /**
+     * @notice Throw when a transaction signer is not the claimer passed in via a claim
+     */
+    error SenderNotClaimer();
+
+    /**
+     * @notice Throw when a claim is invalid
+     */
+    error InvalidClaim();
+
+    /**
+     * @notice Throw when an invalid amount is sent for a payment (native gas token or erc20)
+     */
+    error InvalidPaymentAmount();
+
+    /**
+     * @notice Throw when an on-chain mint vector's config parameter isn't met
+     */
+    error OnchainVectorMintGuardFailed();
+
+    /**
      * @notice On-chain mint vector
      * @param contractAddress NFT smart contract address
      * @param currency Currency used for payment. Native gas token, if zero address
@@ -266,9 +326,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      * @notice Emitted when vector is created on-chain
      * @param vectorId ID of vector
      * @param editionId Edition id of vector, meaningful if vector is for Editions collection
-     * @param vector Vector to create
+     * @param contractAddress Collection contract address
      */
-    event VectorCreated(uint256 indexed vectorId, uint256 indexed editionId, Vector vector);
+    event VectorCreated(uint256 indexed vectorId, uint256 indexed editionId, address indexed contractAddress);
 
     /**
      * @notice Emitted when vector is updated on-chain
@@ -372,7 +432,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      * @notice Restricts calls to platform
      */
     modifier onlyPlatform() {
-        require(_msgSender() == _platform, "Not platform");
+        if (_msgSender() != _platform) {
+            _revert(Unauthorized.selector);
+        }
         _;
     }
 
@@ -405,8 +467,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param _executor Platform executor to add
      */
     function addPlatformExecutor(address _executor) external onlyOwner {
-        require(_executor != address(0), "Cannot set to null address");
-        require(_platformExecutors.add(_executor), "Already added");
+        if (_executor == address(0) || !_platformExecutors.add(_executor)) {
+            _revert(InvalidExecutorChanged.selector);
+        }
         emit PlatformExecutorChanged(_executor, true);
     }
 
@@ -415,7 +478,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param _executor Platform executor to deprecate
      */
     function deprecatePlatformExecutor(address _executor) external onlyOwner {
-        require(_platformExecutors.remove(_executor), "Not deprecated");
+        if (!_platformExecutors.remove(_executor)) {
+            _revert(InvalidExecutorChanged.selector);
+        }
         emit PlatformExecutorChanged(_executor, false);
     }
 
@@ -430,15 +495,19 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         VectorMutability calldata _vectorMutability,
         uint256 editionId
     ) external {
-        require(Ownable(_vector.contractAddress).owner() == _msgSender(), "Not contract owner");
-        require(_vector.totalClaimedViaVector == 0, "totalClaimedViaVector not 0");
+        if (Ownable(_vector.contractAddress).owner() != _msgSender()) {
+            _revert(Unauthorized.selector);
+        }
+        if (_vector.totalClaimedViaVector > 0) {
+            _revert(InvalidTotalClaimed.selector);
+        }
 
         _vectorSupply++;
         vectors[_vectorSupply] = _vector;
         vectorMutabilities[_vectorSupply] = _vectorMutability;
         vectorToEditionId[_vectorSupply] = editionId;
 
-        emit VectorCreated(_vectorSupply, editionId, _vector);
+        emit VectorCreated(_vectorSupply, editionId, _vector.contractAddress);
     }
 
     /**
@@ -448,9 +517,15 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      */
     function updateVector(uint256 vectorId, Vector calldata _newVector) external {
         Vector memory _oldVector = vectors[vectorId];
-        require(vectorMutabilities[vectorId].updatesFrozen == 0, "Updates frozen");
-        require(_oldVector.totalClaimedViaVector == _newVector.totalClaimedViaVector, "Total claimed different");
-        require(Ownable(_oldVector.contractAddress).owner() == _msgSender(), "Not contract owner");
+        if (vectorMutabilities[vectorId].updatesFrozen > 0) {
+            _revert(VectorUpdateActionFrozen.selector);
+        }
+        if (_oldVector.totalClaimedViaVector != _newVector.totalClaimedViaVector) {
+            _revert(InvalidTotalClaimed.selector);
+        }
+        if (Ownable(_oldVector.contractAddress).owner() != _msgSender()) {
+            _revert(Unauthorized.selector);
+        }
 
         vectors[vectorId] = _newVector;
 
@@ -463,8 +538,12 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      */
     function deleteVector(uint256 vectorId) external {
         Vector memory _oldVector = vectors[vectorId];
-        require(vectorMutabilities[vectorId].deleteFrozen == 0, "Delete frozen");
-        require(Ownable(_oldVector.contractAddress).owner() == _msgSender(), "Not contract owner");
+        if (vectorMutabilities[vectorId].deleteFrozen > 0) {
+            _revert(VectorUpdateActionFrozen.selector);
+        }
+        if (Ownable(_oldVector.contractAddress).owner() != _msgSender()) {
+            _revert(Unauthorized.selector);
+        }
 
         delete vectors[vectorId];
         delete vectorMutabilities[vectorId];
@@ -479,8 +558,12 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      */
     function pauseVector(uint256 vectorId) external {
         Vector memory _oldVector = vectors[vectorId];
-        require(vectorMutabilities[vectorId].pausesFrozen == 0, "Pauses frozen");
-        require(Ownable(_oldVector.contractAddress).owner() == _msgSender(), "Not contract owner");
+        if (vectorMutabilities[vectorId].pausesFrozen > 0) {
+            _revert(VectorUpdateActionFrozen.selector);
+        }
+        if (Ownable(_oldVector.contractAddress).owner() != _msgSender()) {
+            _revert(Unauthorized.selector);
+        }
 
         vectors[vectorId].paused = 1;
 
@@ -493,7 +576,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      */
     function unpauseVector(uint256 vectorId) external {
         Vector memory _oldVector = vectors[vectorId];
-        require(Ownable(_oldVector.contractAddress).owner() == _msgSender(), "Not contract owner");
+        if (Ownable(_oldVector.contractAddress).owner() != _msgSender()) {
+            _revert(Unauthorized.selector);
+        }
 
         vectors[vectorId].paused = 0;
 
@@ -506,8 +591,12 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param _newVectorMutability New vector mutability details
      */
     function updateVectorMutability(uint256 vectorId, VectorMutability calldata _newVectorMutability) external {
-        require(vectorMutabilities[vectorId].updatesFrozen == 0, "Updates frozen");
-        require(Ownable(vectors[vectorId].contractAddress).owner() == _msgSender(), "Not contract owner");
+        if (vectorMutabilities[vectorId].updatesFrozen > 0) {
+            _revert(VectorUpdateActionFrozen.selector);
+        }
+        if (Ownable(vectors[vectorId].contractAddress).owner() != _msgSender()) {
+            _revert(Unauthorized.selector);
+        }
 
         vectorMutabilities[vectorId] = _newVectorMutability;
     }
@@ -570,7 +659,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         uint64 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
         uint64 newNumClaimedForUser = userClaims[vectorId][msgSender] + numTokensToMint;
 
-        require(_vector.allowlistRoot == 0, "Use allowlist mint");
+        if (_vector.allowlistRoot != 0) {
+            _revert(AllowlistInvalid.selector);
+        }
 
         _vectorMintEdition721(
             vectorId,
@@ -607,7 +698,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
 
         // merkle tree allowlist validation
         bytes32 leaf = keccak256(abi.encodePacked(msgSender));
-        require(MerkleProof.verify(proof, _vector.allowlistRoot, leaf), "Invalid proof");
+        if (!MerkleProof.verify(proof, _vector.allowlistRoot, leaf)) {
+            _revert(AllowlistInvalid.selector);
+        }
 
         _vectorMintEdition721(
             vectorId,
@@ -662,7 +755,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
 
         _verifyAndUpdateClaimWithMetaTxPacket(claim, claimSignature, msgSender);
 
-        require(claim.currency != address(0), "Has to be ERC20 payment");
+        if (claim.currency == address(0)) {
+            _revert(CurrencyTypeInvalid.selector);
+        }
 
         // make payments
         if (claim.pricePerToken > 0) {
@@ -676,7 +771,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
             );
         }
 
-        require(msg.value >= claim.numTokensToMint * _platformMintFee, "Mint fee not paid");
+        if (msg.value < claim.numTokensToMint * _platformMintFee) {
+            _revert(MintFeeTooLow.selector);
+        }
 
         // mint NFT(s)
         if (claim.numTokensToMint == 1) {
@@ -698,7 +795,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
     function withdrawNativeGasToken() external onlyPlatform {
         uint256 withdrawnValue = address(this).balance;
         (bool sentToPlatform, bytes memory dataPlatform) = _platform.call{ value: withdrawnValue }("");
-        require(sentToPlatform, "Failed to send Ether to platform");
+        if (!sentToPlatform) {
+            _revert(EtherSendFailed.selector);
+        }
     }
 
     /**
@@ -745,7 +844,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         address expectedMsgSender
     ) external view returns (bool) {
         address signer = _claimSigner(claim, signature);
-        require(expectedMsgSender == claim.claimer, "Sender not claimer");
+        if (expectedMsgSender != claim.claimer) {
+            _revert(SenderNotClaimer.selector);
+        }
 
         return
             _isPlatformExecutor(signer) &&
@@ -774,12 +875,18 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         uint256[] calldata tokenIds
     ) external view returns (bool) {
         address signer = _seriesClaimSigner(claim, signature);
-        require(expectedMsgSender == claim.claimer, "Sender not claimer");
+        if (expectedMsgSender != claim.claimer) {
+            _revert(SenderNotClaimer.selector);
+        }
         uint256 numTokensToMint = tokenIds.length;
 
         for (uint256 i = 0; i < numTokensToMint; i++) {
             // if any token has already been minted, return false
-            if (IERC721(claim.contractAddress).ownerOf(tokenIds[i]) != address(0)) {
+            try IERC721(claim.contractAddress).ownerOf(tokenIds[i]) returns (address tokenOwner) {
+                if (tokenOwner != address(0)) {
+                    return false;
+                }
+            } catch {
                 return false;
             }
         }
@@ -810,7 +917,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         address expectedMsgSender
     ) external view returns (bool) {
         address signer = _claimWithMetaTxPacketSigner(claim, signature);
-        require(expectedMsgSender == claim.claimer, "Sender not claimer");
+        if (expectedMsgSender != claim.claimer) {
+            _revert(SenderNotClaimer.selector);
+        }
 
         return
             _isPlatformExecutor(signer) &&
@@ -892,7 +1001,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
                 claim.offchainVectorId
             );
         } else {
-            require(mintFeeAmount <= msg.value, "Invalid mint fee");
+            if (mintFeeAmount > msg.value) {
+                _revert(MintFeeTooLow.selector);
+            }
         }
 
         emit NumTokenMint(claim.offchainVectorId, claim.contractAddress, false, claim.numTokensToMint);
@@ -933,7 +1044,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
                 claim.offchainVectorId
             );
         } else {
-            require(mintFeeAmount <= msg.value, "Invalid mint fee");
+            if (mintFeeAmount > msg.value) {
+                _revert(MintFeeTooLow.selector);
+            }
         }
     }
 
@@ -945,7 +1058,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      */
     function _verifyAndUpdateClaim(Claim calldata claim, bytes calldata signature, address msgSender) private {
         address signer = _claimSigner(claim, signature);
-        require(msgSender == claim.claimer, "Sender not claimer");
+        if (msgSender != claim.claimer) {
+            _revert(SenderNotClaimer.selector);
+        }
 
         // cannot cache here due to nested mapping
         uint256 expectedNumClaimedViaVector = offchainVectorsClaimState[claim.offchainVectorId].numClaimed +
@@ -954,14 +1069,15 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
             msgSender
         ] + claim.numTokensToMint;
 
-        require(
-            _isPlatformExecutor(signer) &&
-                !_offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) &&
-                block.timestamp <= claim.claimExpiryTimestamp &&
-                (expectedNumClaimedViaVector <= claim.maxClaimableViaVector || claim.maxClaimableViaVector == 0) &&
-                (expectedNumClaimedByUser <= claim.maxClaimablePerUser || claim.maxClaimablePerUser == 0),
-            "Invalid claim"
-        );
+        if (
+            !_isPlatformExecutor(signer) ||
+            _offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) ||
+            block.timestamp > claim.claimExpiryTimestamp ||
+            (expectedNumClaimedViaVector > claim.maxClaimableViaVector && claim.maxClaimableViaVector != 0) ||
+            (expectedNumClaimedByUser > claim.maxClaimablePerUser && claim.maxClaimablePerUser != 0)
+        ) {
+            _revert(InvalidClaim.selector);
+        }
 
         _offchainVectorsToNoncesUsed[claim.offchainVectorId].add(claim.claimNonce); // mark claim nonce as used
         // update claim state
@@ -983,7 +1099,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         uint256 numTokensToMint
     ) private {
         address signer = _seriesClaimSigner(claim, signature);
-        require(msgSender == claim.claimer, "Sender not claimer");
+        if (msgSender != claim.claimer) {
+            _revert(SenderNotClaimer.selector);
+        }
 
         // cannot cache here due to nested mapping
         uint256 expectedNumClaimedViaVector = offchainVectorsClaimState[claim.offchainVectorId].numClaimed +
@@ -992,15 +1110,16 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
             msgSender
         ] + numTokensToMint;
 
-        require(
-            _isPlatformExecutor(signer) &&
-                numTokensToMint <= claim.maxPerTxn &&
-                !_offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) &&
-                block.timestamp <= claim.claimExpiryTimestamp &&
-                (expectedNumClaimedViaVector <= claim.maxClaimableViaVector || claim.maxClaimableViaVector == 0) &&
-                (expectedNumClaimedByUser <= claim.maxClaimablePerUser || claim.maxClaimablePerUser == 0),
-            "Invalid claim"
-        );
+        if (
+            !_isPlatformExecutor(signer) ||
+            numTokensToMint > claim.maxPerTxn ||
+            _offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) ||
+            block.timestamp > claim.claimExpiryTimestamp ||
+            (expectedNumClaimedViaVector > claim.maxClaimableViaVector && claim.maxClaimableViaVector != 0) ||
+            (expectedNumClaimedByUser > claim.maxClaimablePerUser && claim.maxClaimablePerUser != 0)
+        ) {
+            _revert(InvalidClaim.selector);
+        }
 
         _offchainVectorsToNoncesUsed[claim.offchainVectorId].add(claim.claimNonce); // mark claim nonce as used
         // update claim state
@@ -1020,7 +1139,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         address msgSender
     ) private {
         address signer = _claimWithMetaTxPacketSigner(claim, signature);
-        require(msgSender == claim.claimer, "Sender not claimer");
+        if (msgSender != claim.claimer) {
+            _revert(SenderNotClaimer.selector);
+        }
 
         // cannot cache here due to nested mapping
         uint256 expectedNumClaimedViaVector = offchainVectorsClaimState[claim.offchainVectorId].numClaimed +
@@ -1029,14 +1150,15 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
             msgSender
         ] + claim.numTokensToMint;
 
-        require(
-            _isPlatformExecutor(signer) &&
-                !_offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) &&
-                block.timestamp <= claim.claimExpiryTimestamp &&
-                (expectedNumClaimedViaVector <= claim.maxClaimableViaVector || claim.maxClaimableViaVector == 0) &&
-                (expectedNumClaimedByUser <= claim.maxClaimablePerUser || claim.maxClaimablePerUser == 0),
-            "Invalid claim"
-        );
+        if (
+            !_isPlatformExecutor(signer) ||
+            _offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) ||
+            block.timestamp > claim.claimExpiryTimestamp ||
+            (expectedNumClaimedViaVector > claim.maxClaimableViaVector && claim.maxClaimableViaVector != 0) ||
+            (expectedNumClaimedByUser > claim.maxClaimablePerUser && claim.maxClaimablePerUser != 0)
+        ) {
+            _revert(InvalidClaim.selector);
+        }
 
         _offchainVectorsToNoncesUsed[claim.offchainVectorId].add(claim.claimNonce); // mark claim nonce as used
         // update claim state
@@ -1059,22 +1181,17 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         uint256 newNumClaimedViaVector,
         uint256 newNumClaimedForUser
     ) private {
-        require(
-            _vector.maxTotalClaimableViaVector >= newNumClaimedViaVector || _vector.maxTotalClaimableViaVector == 0,
-            "> maxClaimableViaVector"
-        );
-        require(
-            _vector.maxUserClaimableViaVector >= newNumClaimedForUser || _vector.maxUserClaimableViaVector == 0,
-            "> maxClaimablePerUser"
-        );
-        require(_vector.paused == 0, "Vector paused");
-        require(
-            (_vector.startTimestamp <= block.timestamp || _vector.startTimestamp == 0) &&
-                (block.timestamp <= _vector.endTimestamp || _vector.endTimestamp == 0),
-            "Invalid mint time"
-        );
-        require(numTokensToMint > 0, "Have to mint something");
-        require(numTokensToMint <= _vector.tokenLimitPerTx, "Too many per tx");
+        if (
+            (_vector.maxTotalClaimableViaVector < newNumClaimedViaVector && _vector.maxTotalClaimableViaVector != 0) ||
+            (_vector.maxUserClaimableViaVector < newNumClaimedForUser && _vector.maxUserClaimableViaVector != 0) ||
+            (_vector.paused != 0) ||
+            ((_vector.startTimestamp > block.timestamp && _vector.startTimestamp != 0) ||
+                (block.timestamp > _vector.endTimestamp && _vector.endTimestamp != 0)) ||
+            (numTokensToMint == 0) ||
+            (numTokensToMint > _vector.tokenLimitPerTx && _vector.tokenLimitPerTx != 0)
+        ) {
+            _revert(OnchainVectorMintGuardFailed.selector);
+        }
 
         // calculate mint fee amount
         uint256 mintFeeAmount = _platformMintFee * numTokensToMint;
@@ -1095,7 +1212,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
                 bytes32(_vectorId)
             );
         } else {
-            require(mintFeeAmount <= msg.value, "Invalid mint fee");
+            if (mintFeeAmount > msg.value) {
+                _revert(MintFeeTooLow.selector);
+            }
         }
 
         emit NumTokenMint(bytes32(_vectorId), _vector.contractAddress, true, numTokensToMint);
@@ -1170,11 +1289,14 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         address payable recipient,
         bytes32 vectorId
     ) private {
-        require(totalAmount + mintFeeAmount <= msg.value, "Invalid amount");
+        if (totalAmount + mintFeeAmount > msg.value) {
+            _revert(InvalidPaymentAmount.selector);
+        }
 
         (bool sentToRecipient, bytes memory dataRecipient) = recipient.call{ value: totalAmount }("");
-        require(sentToRecipient, "Failed to send Ether to recipient");
-
+        if (!sentToRecipient) {
+            _revert(EtherSendFailed.selector);
+        }
         emit NativeGasTokenPayment(recipient, vectorId, totalAmount, 10000);
     }
 
@@ -1195,7 +1317,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         address currency,
         bytes32 vectorId
     ) private {
-        require(mintFeeAmount <= msg.value, "Invalid mint fee");
+        if (mintFeeAmount > msg.value) {
+            _revert(MintFeeTooLow.selector);
+        }
         IERC20(currency).transferFrom(payer, recipient, totalAmount);
         // IERC20(currency).transferFrom(payer, _platform, totalAmount - amountToCreator);
 
@@ -1236,7 +1360,9 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
             purchaseToPlatformPacket.sigV
         );
 
-        require(IERC20(currency).balanceOf(msgSender) <= previousBalance - amount, "Invalid amount transacted");
+        if (IERC20(currency).balanceOf(msgSender) > (previousBalance - amount)) {
+            _revert(InvalidPaymentAmount.selector);
+        }
 
         emit ERC20PaymentMetaTxPackets(
             currency,
@@ -1414,5 +1540,15 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         bytes32 offchainVectorId
     ) private pure returns (bytes memory) {
         return abi.encode(claimNonce, offchainVectorId);
+    }
+
+    /**
+     * @dev For more efficient reverts.
+     */
+    function _revert(bytes4 errorSelector) private pure {
+        assembly {
+            mstore(0x00, errorSelector)
+            revert(0x00, 0x04)
+        }
     }
 }

@@ -1,7 +1,3 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import {
   ERC721General,
   MinimalForwarder,
@@ -9,7 +5,12 @@ import {
   Observability,
   OwnerOnlyTokenManager,
   TotalLockedTokenManager,
-} from "../types";
+} from "@highlightxyz/libnode/contracts/types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
+import { Errors } from "./__utils__/data";
 import { setupGenerative, setupSystem } from "./__utils__/helpers";
 
 describe("ERC721Generative functionality", () => {
@@ -82,12 +83,12 @@ describe("ERC721Generative functionality", () => {
 
     describe("setBaseUri", function () {
       it("Cannot set to empty string", async function () {
-        await expect(generative.setBaseURI("")).to.be.revertedWith("Empty string");
+        await expect(generative.setBaseURI("")).to.be.revertedWithCustomError(generative, Errors.EmptyString);
       });
 
       it("If default manager is non-existent, invocation from non-owner fails", async function () {
         generative = generative.connect(fan1);
-        await expect(generative.setBaseURI("testing")).to.be.revertedWith("Not owner");
+        await expect(generative.setBaseURI("testing")).to.be.revertedWithCustomError(generative, Errors.Unauthorized);
       });
 
       it("If default manager is non-existent, invocation from owner succeeds", async function () {
@@ -105,7 +106,7 @@ describe("ERC721Generative functionality", () => {
         );
 
         generative = generative.connect(fan1);
-        await expect(generative.setBaseURI("testing")).to.be.revertedWith("Can't update base uri");
+        await expect(generative.setBaseURI("testing")).to.be.revertedWithCustomError(generative, Errors.Unauthorized);
 
         generative = generative.connect(owner);
         await expect(generative.setBaseURI("testing")).to.emit(generative, "BaseURISet").withArgs("baseUri", "testing");
@@ -118,12 +119,18 @@ describe("ERC721Generative functionality", () => {
 
     describe("setTokenUris", function () {
       it("ids and uris length cannot mismatch", async function () {
-        await expect(generative.setTokenURIs([1, 2], ["test"])).to.be.revertedWith("Mismatched array lengths");
+        await expect(generative.setTokenURIs([1, 2], ["test"])).to.be.revertedWithCustomError(
+          generative,
+          Errors.MismatchedArrayLengths,
+        );
       });
 
       it("If token manager is non-existent, invocation from non-owner fails", async function () {
         generative = generative.connect(fan1);
-        await expect(generative.setTokenURIs([1, 2], ["testing1", "testing2"])).to.be.revertedWith("Not owner");
+        await expect(generative.setTokenURIs([1, 2], ["testing1", "testing2"])).to.be.revertedWithCustomError(
+          generative,
+          Errors.Unauthorized,
+        );
       });
 
       it("If tokens manager is non-existent, invocation owner succeeds", async function () {
@@ -148,7 +155,10 @@ describe("ERC721Generative functionality", () => {
         );
 
         generative = generative.connect(fan1);
-        await expect(generative.setTokenURIs([1, 2], ["testing1", "testing2"])).to.be.revertedWith("Can't update");
+        await expect(generative.setTokenURIs([1, 2], ["testing1", "testing2"])).to.be.revertedWithCustomError(
+          generative,
+          Errors.Unauthorized,
+        );
 
         generative = generative.connect(owner);
 
@@ -170,13 +180,19 @@ describe("ERC721Generative functionality", () => {
           ),
         ).to.emit(generative, "GranularTokenManagersSet");
 
-        await expect(generative.setTokenURIs([1, 2, 3], ["testing1", "testing2", "testing3"])).to.be.revertedWith(
-          "Can't update",
+        await expect(
+          generative.setTokenURIs([1, 2, 3], ["testing1", "testing2", "testing3"]),
+        ).to.be.revertedWithCustomError(generative, Errors.Unauthorized);
+
+        await expect(generative.setTokenURIs([2, 3], ["testing2", "testing3"])).to.be.revertedWithCustomError(
+          generative,
+          Errors.Unauthorized,
         );
 
-        await expect(generative.setTokenURIs([2, 3], ["testing2", "testing3"])).to.be.revertedWith("Can't update");
-
-        await expect(generative.setTokenURIs([1, 3], ["testing1", "testing3"])).to.be.revertedWith("Can't update");
+        await expect(generative.setTokenURIs([1, 3], ["testing1", "testing3"])).to.be.revertedWithCustomError(
+          generative,
+          Errors.Unauthorized,
+        );
 
         await expect(generative.setTokenURIs([3], ["testing3"]))
           .to.emit(generative, "TokenURIsSet")
@@ -203,13 +219,19 @@ describe("ERC721Generative functionality", () => {
       it("Non minter cannot call", async function () {
         generative = generative.connect(fan1);
 
-        await expect(generative.mintOneToOneRecipient(fan1.address)).to.be.revertedWith("Not minter");
+        await expect(generative.mintOneToOneRecipient(fan1.address)).to.be.revertedWithCustomError(
+          generative,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(generative.freezeMints()).to.emit(generative, "MintsFrozen");
 
-        await expect(generative.mintOneToOneRecipient(fan1.address)).to.be.revertedWith("Mint frozen");
+        await expect(generative.mintOneToOneRecipient(fan1.address)).to.be.revertedWithCustomError(
+          generative,
+          Errors.MintFrozen,
+        );
       });
 
       it("Can mint validly up until limit supply", async function () {
@@ -222,7 +244,10 @@ describe("ERC721Generative functionality", () => {
           expect(await generative.ownerOf(i)).to.equal(fan1.address);
         }
 
-        await expect(generative.mintOneToOneRecipient(fan1.address)).to.be.revertedWith("Over limit supply");
+        await expect(generative.mintOneToOneRecipient(fan1.address)).to.be.revertedWithCustomError(
+          generative,
+          Errors.OverLimitSupply,
+        );
 
         await expect(generative.setLimitSupply(0)).to.emit(generative, "LimitSupplySet").withArgs(0);
 
@@ -241,17 +266,26 @@ describe("ERC721Generative functionality", () => {
       it("Non minter cannot call", async function () {
         generative = generative.connect(fan1);
 
-        await expect(generative.mintAmountToOneRecipient(fan1.address, 2)).to.be.revertedWith("Not minter");
+        await expect(generative.mintAmountToOneRecipient(fan1.address, 2)).to.be.revertedWithCustomError(
+          generative,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(generative.freezeMints()).to.emit(generative, "MintsFrozen");
 
-        await expect(generative.mintAmountToOneRecipient(fan1.address, 2)).to.be.revertedWith("Mint frozen");
+        await expect(generative.mintAmountToOneRecipient(fan1.address, 2)).to.be.revertedWithCustomError(
+          generative,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint more than limitSupply, in multiple variations", async function () {
-        await expect(generative.mintAmountToOneRecipient(fan1.address, 6)).to.be.revertedWith("Over limit supply");
+        await expect(generative.mintAmountToOneRecipient(fan1.address, 6)).to.be.revertedWithCustomError(
+          generative,
+          Errors.OverLimitSupply,
+        );
 
         await expect(generative.mintAmountToOneRecipient(fan1.address, 3))
           .to.emit(generative, "Transfer")
@@ -261,7 +295,10 @@ describe("ERC721Generative functionality", () => {
           .to.emit(generative, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 3);
 
-        await expect(generative.mintAmountToOneRecipient(fan1.address, 3)).to.be.revertedWith("Over limit supply");
+        await expect(generative.mintAmountToOneRecipient(fan1.address, 3)).to.be.revertedWithCustomError(
+          generative,
+          Errors.OverLimitSupply,
+        );
 
         await expect(generative.setLimitSupply(0)).to.emit(generative, "LimitSupplySet").withArgs(0);
 
@@ -311,19 +348,26 @@ describe("ERC721Generative functionality", () => {
       it("Non minter cannot call", async function () {
         generative = generative.connect(fan1);
 
-        await expect(generative.mintOneToMultipleRecipients([fan1.address])).to.be.revertedWith("Not minter");
+        await expect(generative.mintOneToMultipleRecipients([fan1.address])).to.be.revertedWithCustomError(
+          generative,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(generative.freezeMints()).to.emit(generative, "MintsFrozen");
 
-        await expect(generative.mintOneToMultipleRecipients([fan1.address])).to.be.revertedWith("Mint frozen");
+        await expect(generative.mintOneToMultipleRecipients([fan1.address])).to.be.revertedWithCustomError(
+          generative,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint more than limitSupply, in multiple variations", async function () {
         const recipientAddresses = [fan1.address, fan1.address, fan1.address, fan1.address, fan1.address, fan1.address];
-        await expect(generative.mintOneToMultipleRecipients(recipientAddresses)).to.be.revertedWith(
-          "Over limit supply",
+        await expect(generative.mintOneToMultipleRecipients(recipientAddresses)).to.be.revertedWithCustomError(
+          generative,
+          Errors.OverLimitSupply,
         );
 
         await expect(generative.mintOneToMultipleRecipients(recipientAddresses.slice(3)))
@@ -334,8 +378,9 @@ describe("ERC721Generative functionality", () => {
           .to.emit(generative, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 3);
 
-        await expect(generative.mintOneToMultipleRecipients(recipientAddresses.slice(3))).to.be.revertedWith(
-          "Over limit supply",
+        await expect(generative.mintOneToMultipleRecipients(recipientAddresses.slice(3))).to.be.revertedWithCustomError(
+          generative,
+          Errors.OverLimitSupply,
         );
 
         await expect(generative.setLimitSupply(0)).to.emit(generative, "LimitSupplySet").withArgs(0);
@@ -390,22 +435,26 @@ describe("ERC721Generative functionality", () => {
       it("Non minter cannot call", async function () {
         generative = generative.connect(fan1);
 
-        await expect(generative.mintSameAmountToMultipleRecipients([fan1.address], 2)).to.be.revertedWith("Not minter");
+        await expect(generative.mintSameAmountToMultipleRecipients([fan1.address], 2)).to.be.revertedWithCustomError(
+          generative,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(generative.freezeMints()).to.emit(generative, "MintsFrozen");
 
-        await expect(generative.mintSameAmountToMultipleRecipients([fan1.address], 2)).to.be.revertedWith(
-          "Mint frozen",
+        await expect(generative.mintSameAmountToMultipleRecipients([fan1.address], 2)).to.be.revertedWithCustomError(
+          generative,
+          Errors.MintFrozen,
         );
       });
 
       it("Cannot mint more than limitSupply, in multiple variations", async function () {
         const recipientAddresses = [fan1.address, fan1.address, fan1.address];
-        await expect(generative.mintSameAmountToMultipleRecipients(recipientAddresses, 2)).to.be.revertedWith(
-          "Over limit supply",
-        );
+        await expect(
+          generative.mintSameAmountToMultipleRecipients(recipientAddresses, 2),
+        ).to.be.revertedWithCustomError(generative, Errors.OverLimitSupply);
 
         await expect(generative.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 2))
           .to.emit(generative, "Transfer")
@@ -417,9 +466,9 @@ describe("ERC721Generative functionality", () => {
           .to.emit(generative, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 4);
 
-        await expect(generative.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 1)).to.be.revertedWith(
-          "Over limit supply",
-        );
+        await expect(
+          generative.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 1),
+        ).to.be.revertedWithCustomError(generative, Errors.OverLimitSupply);
 
         await expect(generative.setLimitSupply(0))
           .to.emit(generative, "LimitSupplySet")
@@ -440,9 +489,9 @@ describe("ERC721Generative functionality", () => {
 
       it("Minter can mint validly (simple variation)", async function () {
         const recipientAddresses = [fan1.address, fan1.address, fan1.address];
-        await expect(generative.mintSameAmountToMultipleRecipients(recipientAddresses, 2)).to.be.revertedWith(
-          "Over limit supply",
-        );
+        await expect(
+          generative.mintSameAmountToMultipleRecipients(recipientAddresses, 2),
+        ).to.be.revertedWithCustomError(generative, Errors.OverLimitSupply);
 
         await expect(generative.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 2))
           .to.emit(generative, "Transfer")
@@ -454,9 +503,9 @@ describe("ERC721Generative functionality", () => {
           .to.emit(generative, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 4);
 
-        await expect(generative.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 2)).to.be.revertedWith(
-          "Over limit supply",
-        );
+        await expect(
+          generative.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 2),
+        ).to.be.revertedWithCustomError(generative, Errors.OverLimitSupply);
       });
 
       it("Minter can mint validly (complex variation)", async function () {
@@ -490,25 +539,33 @@ describe("ERC721Generative functionality", () => {
       it("Non minter cannot call", async function () {
         generative = generative.connect(fan1);
 
-        await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 1)).to.be.revertedWith("Not minter");
+        await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 1)).to.be.revertedWithCustomError(
+          generative,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(generative.freezeMints()).to.emit(generative, "MintsFrozen");
 
-        await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 2)).to.be.revertedWith("Mint frozen");
+        await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 2)).to.be.revertedWithCustomError(
+          generative,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint token not in range, but can mint in-range ones", async function () {
         await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 1)).to.emit(generative, "Transfer");
         await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 2)).to.emit(generative, "Transfer");
-        await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 5)).to.be.revertedWith(
-          "Token not in range",
+        await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 5)).to.be.revertedWithCustomError(
+          generative,
+          Errors.TokenNotInRange,
         );
         await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 3)).to.emit(generative, "Transfer");
         await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 4)).to.emit(generative, "Transfer");
-        await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 5)).to.be.revertedWith(
-          "Token not in range",
+        await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 5)).to.be.revertedWithCustomError(
+          generative,
+          Errors.TokenNotInRange,
         );
 
         await expect(generative.setLimitSupply(0)).to.emit(generative, "LimitSupplySet").withArgs(0);
@@ -518,8 +575,9 @@ describe("ERC721Generative functionality", () => {
 
       it("Cannot mint already minted token", async function () {
         await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 4)).to.emit(generative, "Transfer");
-        await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 4)).to.be.revertedWith(
-          "ERC721: token minted",
+        await expect(generative.mintSpecificTokenToOneRecipient(fan1.address, 4)).to.be.revertedWithCustomError(
+          generative,
+          Errors.TokenMintedAlready,
         );
       });
     });
@@ -528,23 +586,28 @@ describe("ERC721Generative functionality", () => {
       it("Non minter cannot call", async function () {
         generative = generative.connect(fan1);
 
-        await expect(generative.mintSpecificTokensToOneRecipient(fan1.address, [1, 2])).to.be.revertedWith(
-          "Not minter",
+        await expect(generative.mintSpecificTokensToOneRecipient(fan1.address, [1, 2])).to.be.revertedWithCustomError(
+          generative,
+          Errors.NotMinter,
         );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(generative.freezeMints()).to.emit(generative, "MintsFrozen");
 
-        await expect(generative.mintSpecificTokensToOneRecipient(fan1.address, [2])).to.be.revertedWith("Mint frozen");
+        await expect(generative.mintSpecificTokensToOneRecipient(fan1.address, [2])).to.be.revertedWithCustomError(
+          generative,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint token not in range, but can mint in-range ones", async function () {
         await expect(generative.mintSpecificTokensToOneRecipient(fan1.address, [1, 4]))
           .to.emit(generative, "Transfer")
           .to.emit(generative, "Transfer");
-        await expect(generative.mintSpecificTokensToOneRecipient(fan1.address, [2, 5])).to.be.revertedWith(
-          "Token not in range",
+        await expect(generative.mintSpecificTokensToOneRecipient(fan1.address, [2, 5])).to.be.revertedWithCustomError(
+          generative,
+          Errors.TokenNotInRange,
         );
         await expect(generative.mintSpecificTokensToOneRecipient(fan1.address, [2, 3]))
           .to.emit(generative, "Transfer")
@@ -560,9 +623,9 @@ describe("ERC721Generative functionality", () => {
 
       it("Cannot mint already minted token", async function () {
         await expect(generative.mintSpecificTokensToOneRecipient(fan1.address, [4, 1])).to.emit(generative, "Transfer");
-        await expect(generative.mintSpecificTokensToOneRecipient(fan1.address, [2, 1, 3])).to.be.revertedWith(
-          "ERC721: token minted",
-        );
+        await expect(
+          generative.mintSpecificTokensToOneRecipient(fan1.address, [2, 1, 3]),
+        ).to.be.revertedWithCustomError(generative, Errors.TokenMintedAlready);
       });
     });
   });

@@ -100,6 +100,8 @@ contract Observability is IObservability {
 
     /**
      * @notice See {IObservability-emitTokenURIsSet}
+     * @dev If sent by an EditionsDFS based contract,
+     *      ids and uris will be of length 1 and contain edition id / new edition uri
      */
     function emitTokenURIsSet(uint256[] calldata ids, string[] calldata uris) external {
         emit TokenURIsSet(msg.sender, ids, uris);

@@ -1,7 +1,3 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import {
   ERC721SingleEdition,
   EditionsMetadataRenderer,
@@ -9,7 +5,12 @@ import {
   MintManager,
   Observability,
   OperatorFilterRegistry,
-} from "../types";
+} from "@highlightxyz/libnode/contracts/types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
+import { Errors } from "./__utils__/data";
 import { setupSingleEdition, setupSystem } from "./__utils__/helpers";
 
 describe("MarketplaceFilterer functionality", () => {
@@ -193,13 +194,14 @@ describe("MarketplaceFilterer functionality", () => {
       );
 
       singleEdition = singleEdition.connect(editionsOwner);
-      await expect(singleEdition.transferFrom(fan1.address, editionsOwner.address, 1)).to.be.revertedWith(
-        "ERC721: from not owner",
+      await expect(singleEdition.transferFrom(fan1.address, editionsOwner.address, 1)).to.be.revertedWithCustomError(
+        singleEdition,
+        Errors.TransferFromIncorrectOwner,
       );
 
       await expect(
         singleEdition["safeTransferFrom(address,address,uint256)"](fan1.address, editionsOwner.address, 1),
-      ).to.be.revertedWith("ERC721: from not owner");
+      ).to.be.revertedWithCustomError(singleEdition, Errors.TransferFromIncorrectOwner);
     });
   });
 });

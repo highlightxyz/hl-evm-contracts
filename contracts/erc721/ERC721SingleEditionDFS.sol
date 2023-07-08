@@ -10,14 +10,16 @@ import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
 import "./interfaces/IERC721EditionMint.sol";
 import "./MarketplaceFilterer/MarketplaceFilterer.sol";
+import "../tokenManager/interfaces/ITokenManagerEditions.sol";
 import "./erc721a/ERC721AUpgradeable.sol";
 
 /**
  * @title ERC721 Single Edition
  * @author highlight.xyz
  * @notice Single Edition Per Collection
+ * @dev Using Decentralized File Storage
  */
-contract ERC721SingleEdition is
+contract ERC721SingleEditionDFS is
     IERC721EditionMint,
     IEditionCollection,
     ERC721MinimizedBase,
@@ -52,19 +54,24 @@ contract ERC721SingleEdition is
     error InvalidEditionIdsLength();
 
     /**
+     * @notice Throw when editionId is invalid
+     */
+    error InvalidEditionId();
+
+    /**
      * @notice Contract metadata
      */
     string public contractURI;
 
     /**
-     * @notice Generates metadata for contract and token
-     */
-    address private _metadataRendererAddress;
-
-    /**
      * @notice Total size of edition that can be minted
      */
     uint256 public size;
+
+    /**
+     * @notice Stores the edition's metadata
+     */
+    string public editionUri;
 
     /**
      * @notice Emitted when edition is created
@@ -83,11 +90,10 @@ contract ERC721SingleEdition is
      * @ param _name Name of token edition
      * @ param _symbol Symbol of the token edition
      * @ param _size Edition size
-     * @ param metadataRendererAddress Contract returning metadata for each edition
      * @ param trustedForwarder Trusted minimal forwarder
      * @ param initialMinter Initial minter to register
      * @ param useMarketplaceFiltererRegistry Denotes whether to use marketplace filterer registry
-     * @ param _editionInfo Edition info
+     * @ param _editionUri Edition uri
      * @param _observability Observability contract address
      */
     function initialize(bytes calldata data, address _observability) external initializer {
@@ -99,11 +105,10 @@ contract ERC721SingleEdition is
             string memory _name,
             string memory _symbol,
             uint256 _size,
-            address metadataRendererAddress,
             address trustedForwarder,
             address initialMinter,
             bool useMarketplaceFiltererRegistry,
-            bytes memory _editionInfo
+            string memory _editionUri
         ) = abi.decode(
                 data,
                 (
@@ -116,9 +121,8 @@ contract ERC721SingleEdition is
                     uint256,
                     address,
                     address,
-                    address,
                     bool,
-                    bytes
+                    string
                 )
             );
 
@@ -129,9 +133,8 @@ contract ERC721SingleEdition is
             _contractURI,
             _name,
             _symbol,
-            _editionInfo,
+            _editionUri,
             _size,
-            metadataRendererAddress,
             trustedForwarder,
             initialMinter,
             useMarketplaceFiltererRegistry
@@ -363,7 +366,7 @@ contract ERC721SingleEdition is
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
-        return IEditionsMetadataRenderer(_metadataRendererAddress).editionURI(editionId);
+        return editionUri;
     }
 
     /**
@@ -375,7 +378,7 @@ contract ERC721SingleEdition is
         if (!_exists(tokenId)) {
             _revert(TokenDoesNotExist.selector);
         }
-        return IMetadataRenderer(_metadataRendererAddress).tokenURI(tokenId);
+        return editionUri;
     }
 
     /**
@@ -384,6 +387,46 @@ contract ERC721SingleEdition is
      */
     function tokenManagerByTokenId(uint256 tokenId) public view returns (address) {
         return tokenManager(tokenId);
+    }
+
+    /**
+     * @notice Set an Edition's uri
+     * @param editionId Edition to set uri for
+     * @param _uri Uri to set on editions
+     */
+    function setEditionURI(uint256 editionId, string calldata _uri) external {
+        if (editionId != 0) {
+            _revert(InvalidEditionId.selector);
+        }
+        address _manager = defaultManager;
+        address msgSender = _msgSender();
+
+        if (_manager == address(0)) {
+            address tempOwner = owner();
+            if (msgSender != tempOwner) {
+                _revert(Unauthorized.selector);
+            }
+        } else {
+            if (
+                !ITokenManagerEditions(_manager).canUpdateEditionsMetadata(
+                    address(this),
+                    msgSender,
+                    0,
+                    bytes(_uri),
+                    ITokenManagerEditions.FieldUpdated.other
+                )
+            ) {
+                _revert(Unauthorized.selector);
+            }
+        }
+
+        editionUri = _uri;
+
+        uint256[] memory _ids = new uint256[](1);
+        _ids[0] = 0;
+        string[] memory _uris = new string[](1);
+        _uris[0] = _uri;
+        observability.emitTokenURIsSet(_ids, _uris);
     }
 
     /**
@@ -467,9 +510,8 @@ contract ERC721SingleEdition is
      * @param _contractURI Contract metadata
      * @param _name Name of token edition
      * @param _symbol Symbol of the token edition
-     * @param _editionInfo Edition info
+     * @param _editionUri Edition uri (metadata)
      * @param _size Edition size
-     * @param metadataRendererAddress Contract returning metadata for each edition
      * @param trustedForwarder Trusted minimal forwarder
      * @param initialMinter Initial minter to register
      * @param useMarketplaceFiltererRegistry Denotes whether to use marketplace filterer registry
@@ -481,9 +523,8 @@ contract ERC721SingleEdition is
         string memory _contractURI,
         string memory _name,
         string memory _symbol,
-        bytes memory _editionInfo,
+        string memory _editionUri,
         uint256 _size,
-        address metadataRendererAddress,
         address trustedForwarder,
         address initialMinter,
         bool useMarketplaceFiltererRegistry
@@ -493,8 +534,7 @@ contract ERC721SingleEdition is
         __ERC2771ContextUpgradeable__init__(trustedForwarder);
         __MarketplaceFilterer__init__(useMarketplaceFiltererRegistry);
         size = _size;
-        _metadataRendererAddress = metadataRendererAddress;
-        IMetadataRenderer(metadataRendererAddress).initializeMetadata(_editionInfo);
+        editionUri = _editionUri;
         _minters.add(initialMinter);
         contractURI = _contractURI;
 

@@ -1,7 +1,3 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import {
   AuctionManager,
   ERC721Editions,
@@ -11,7 +7,11 @@ import {
   Observability,
   TestEditionsMetadataRenderer,
   TestMintManager,
-} from "../types";
+} from "@highlightxyz/libnode/contracts/types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import { SAMPLE_VECTOR_1, SAMPLE_VECTOR_MUTABILITY_1 } from "./__utils__/data";
 import { setupEditions, setupSystem } from "./__utils__/helpers";
 

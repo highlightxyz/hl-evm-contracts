@@ -1,7 +1,3 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import {
   AuctionManager,
   ERC721Editions,
@@ -11,7 +7,11 @@ import {
   MinimalForwarder,
   MintManager,
   Observability,
-} from "../types";
+} from "@highlightxyz/libnode/contracts/types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import { setupEditions, setupGeneral, setupSingleEdition, setupSystem } from "./__utils__/helpers";
 import { sign2771MetaTxRequest } from "./__utils__/metaTx";
 

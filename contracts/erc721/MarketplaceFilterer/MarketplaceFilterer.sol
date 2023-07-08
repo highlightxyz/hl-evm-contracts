@@ -9,12 +9,14 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
  * @title  MarketplaceFilterer
  * @notice Abstract contract whose constructor automatically registers and subscribes to default
            subscription from OpenSea, if a valid registry is passed in. 
-           Slightly modified from `OperatorFilterer` contract by highlight.xyz.
+           Slightly modified from `OperatorFilterer` contract by ishan@ highlight.xyz.
  * @dev    This smart contract is meant to be inherited by token contracts so they can use the following:
  *         - `onlyAllowedOperator` modifier for `transferFrom` and `safeTransferFrom` methods.
  *         - `onlyAllowedOperatorApproval` modifier for `approve` and `setApprovalForAll` methods.
  */
 abstract contract MarketplaceFilterer is OwnableUpgradeable {
+    error NotAContract();
+
     error OperatorNotAllowed(address operator);
 
     /**
@@ -45,7 +47,9 @@ abstract contract MarketplaceFilterer is OwnableUpgradeable {
      *         Also register this contract with that registry.
      */
     function setCustomMarketplaceFiltererRegistryAndRegisterDefaultSubscription(address newRegistry) public onlyOwner {
-        require(newRegistry.code.length > 0, "Not a contract");
+        if (newRegistry.code.length == 0) {
+            _revert(NotAContract.selector);
+        }
         _setMarketplaceFiltererRegistryAndRegisterDefaultSubscription(newRegistry);
     }
 
@@ -97,6 +101,16 @@ abstract contract MarketplaceFilterer is OwnableUpgradeable {
             if (!IOperatorFilterRegistry(operatorFiltererRegistry).isOperatorAllowed(address(this), operator)) {
                 revert OperatorNotAllowed(operator);
             }
+        }
+    }
+
+    /**
+     * @dev For more efficient reverts.
+     */
+    function _revert(bytes4 errorSelector) internal pure virtual {
+        assembly {
+            mstore(0x00, errorSelector)
+            revert(0x00, 0x04)
         }
     }
 }

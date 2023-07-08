@@ -1,7 +1,3 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import {
   AuctionManager,
   ERC721Editions,
@@ -16,7 +12,12 @@ import {
   Observability,
   OwnerOnlyRoyaltyManager,
   OwnerOnlyTokenManager,
-} from "../types";
+} from "@highlightxyz/libnode/contracts/types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
+import { Errors } from "./__utils__/data";
 import { setupEditions, setupSingleEdition, setupSystem } from "./__utils__/helpers";
 
 enum BaseEvents {
@@ -128,11 +129,17 @@ describe("ERC721 Base functionality", () => {
           .to.emit(observability, BaseEvents.MinterRegistrationChanged)
           .withArgs(editions.address, fan1.address, true);
 
-        await expect(editions.registerMinter(fan1.address)).to.be.revertedWith("Already minter");
+        await expect(editions.registerMinter(fan1.address)).to.be.revertedWithCustomError(
+          editions,
+          Errors.MinterRegistrationInvalid,
+        );
       });
 
       it("Can only unregister registered minters", async function () {
-        await expect(editions.unregisterMinter(fan1.address)).to.be.revertedWith("Not yet minter");
+        await expect(editions.unregisterMinter(fan1.address)).to.be.revertedWithCustomError(
+          editions,
+          Errors.MinterRegistrationInvalid,
+        );
 
         await editions.registerMinter(fan1.address);
 
@@ -149,22 +156,22 @@ describe("ERC721 Base functionality", () => {
         it("An invalid token manager cannot be set", async function () {
           await expect(
             editions.setGranularTokenManagers([0, 1], [invalidTokenManager.address, invalidTokenManager.address]),
-          ).to.be.revertedWith("Invalid TM");
+          ).to.be.revertedWithCustomError(editions, Errors.InvalidManager);
 
           await expect(
             editions.setGranularTokenManagers([0, 1], [lockedTokenManager.address, invalidTokenManager.address]),
-          ).to.be.revertedWith("Invalid TM");
+          ).to.be.revertedWithCustomError(editions, Errors.InvalidManager);
 
           await expect(
             editions.setGranularTokenManagers([0, 1], [invalidTokenManager.address, lockedTokenManager.address]),
-          ).to.be.revertedWith("Invalid TM");
+          ).to.be.revertedWithCustomError(editions, Errors.InvalidManager);
         });
 
         it("Non owners cannot call", async function () {
           editions = editions.connect(fan1);
           await expect(
             editions.setGranularTokenManagers([0, 1], [lockedTokenManager.address, lockedTokenManager.address]),
-          ).to.be.revertedWith("!owner");
+          ).to.be.revertedWithCustomError(editions, Errors.Unauthorized);
         });
 
         it("Owner can set granular token managers", async function () {
@@ -179,7 +186,10 @@ describe("ERC721 Base functionality", () => {
         });
 
         it("Cannot remove non-existent token manager", async function () {
-          await expect(editions.removeGranularTokenManagers([0])).to.be.revertedWith("TM !exists");
+          await expect(editions.removeGranularTokenManagers([0])).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerDoesNotExist,
+          );
         });
       });
 
@@ -199,7 +209,7 @@ describe("ERC721 Base functionality", () => {
 
           await expect(
             editions.setGranularTokenManagers([0, 1], [lockedTokenManager.address, lockedTokenManager.address]),
-          ).to.be.revertedWith("Can't swap");
+          ).to.be.revertedWithCustomError(editions, Errors.ManagerSwapBlocked);
 
           editions = editions.connect(editionsOwner);
 
@@ -211,7 +221,7 @@ describe("ERC721 Base functionality", () => {
 
           await expect(
             editions.setGranularTokenManagers([0, 1], [ownerOnlyTokenManager.address, lockedTokenManager.address]),
-          ).to.be.revertedWith("Can't swap");
+          ).to.be.revertedWithCustomError(editions, Errors.ManagerSwapBlocked);
 
           await expect(editions.setGranularTokenManagers([1], [lockedTokenManager.address]))
             .to.be.emit(editions, BaseEvents.GranularTokenManagersSet)
@@ -223,7 +233,10 @@ describe("ERC721 Base functionality", () => {
         it("Remove attempts respect the wishes of current token managers", async function () {
           editions = editions.connect(fan1);
 
-          await expect(editions.removeGranularTokenManagers([0, 1])).to.be.revertedWith("Can't remove");
+          await expect(editions.removeGranularTokenManagers([0, 1])).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerRemoveBlocked,
+          );
 
           editions = editions.connect(editionsOwner);
 
@@ -241,12 +254,18 @@ describe("ERC721 Base functionality", () => {
     describe("Default token manager management", function () {
       describe("Current default token manager not existing", function () {
         it("An invalid default token manager cannot be set", async function () {
-          await expect(editions.setDefaultTokenManager(invalidTokenManager.address)).to.be.revertedWith("Invalid TM");
+          await expect(editions.setDefaultTokenManager(invalidTokenManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.InvalidManager,
+          );
         });
 
         it("Non owners cannot call", async function () {
           editions = editions.connect(fan1);
-          await expect(editions.setDefaultTokenManager(lockedTokenManager.address)).to.be.revertedWith("!owner");
+          await expect(editions.setDefaultTokenManager(lockedTokenManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.Unauthorized,
+          );
         });
 
         it("Owner can set default token manager", async function () {
@@ -260,7 +279,10 @@ describe("ERC721 Base functionality", () => {
         });
 
         it("Cannot remove non-existent default token manager", async function () {
-          await expect(editions.removeDefaultTokenManager()).to.be.revertedWith("TM !exists");
+          await expect(editions.removeDefaultTokenManager()).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerDoesNotExist,
+          );
         });
       });
 
@@ -285,7 +307,10 @@ describe("ERC721 Base functionality", () => {
         it("Swap attempts respect the wishes of current default token manager", async function () {
           editions = editions.connect(fan1);
 
-          await expect(editions.setDefaultTokenManager(lockedTokenManager.address)).to.be.revertedWith("Can't swap");
+          await expect(editions.setDefaultTokenManager(lockedTokenManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerSwapBlocked,
+          );
 
           editions = editions.connect(editionsOwner);
 
@@ -299,13 +324,19 @@ describe("ERC721 Base functionality", () => {
             expect(await editions.tokenManager(0)).to.eql(lockedTokenManager.address);
           }
 
-          await expect(editions.setDefaultTokenManager(ownerOnlyTokenManager.address)).to.be.revertedWith("Can't swap");
+          await expect(editions.setDefaultTokenManager(ownerOnlyTokenManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerSwapBlocked,
+          );
         });
 
         it("Remove attempts respect the wishes of current default token", async function () {
           editions = editions.connect(fan1);
 
-          await expect(editions.removeDefaultTokenManager()).to.be.revertedWith("Can't remove");
+          await expect(editions.removeDefaultTokenManager()).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerRemoveBlocked,
+          );
 
           editions = editions.connect(editionsOwner);
 
@@ -323,12 +354,18 @@ describe("ERC721 Base functionality", () => {
     describe("Royalty manager management", function () {
       describe("Current royalty manager not existing", function () {
         it("An invalid royalty manager cannot be set", async function () {
-          await expect(editions.setRoyaltyManager(invalidRoyaltyManager.address)).to.be.revertedWith("Invalid RM");
+          await expect(editions.setRoyaltyManager(invalidRoyaltyManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.InvalidManager,
+          );
         });
 
         it("Non owners cannot call", async function () {
           editions = editions.connect(fan1);
-          await expect(editions.setRoyaltyManager(ownerOnlyRoyaltyManager.address)).to.be.revertedWith("!owner");
+          await expect(editions.setRoyaltyManager(ownerOnlyRoyaltyManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.Unauthorized,
+          );
         });
 
         it("Owner can set royalty manager", async function () {
@@ -340,7 +377,10 @@ describe("ERC721 Base functionality", () => {
         });
 
         it("Cannot remove non-existent royalty manager", async function () {
-          await expect(editions.removeRoyaltyManager()).to.be.revertedWith("RM !exists");
+          await expect(editions.removeRoyaltyManager()).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerDoesNotExist,
+          );
         });
       });
 
@@ -356,7 +396,10 @@ describe("ERC721 Base functionality", () => {
         it("Swap attempts respect the wishes of current royalty manager", async function () {
           editions = editions.connect(fan1);
 
-          await expect(editions.setRoyaltyManager(lockedRoyaltyManager.address)).to.be.revertedWith("Can't swap");
+          await expect(editions.setRoyaltyManager(lockedRoyaltyManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerSwapBlocked,
+          );
 
           editions = editions.connect(editionsOwner);
 
@@ -368,13 +411,19 @@ describe("ERC721 Base functionality", () => {
 
           expect(await editions.royaltyManager()).to.eql(lockedRoyaltyManager.address);
 
-          await expect(editions.setRoyaltyManager(ownerOnlyRoyaltyManager.address)).to.be.revertedWith("Can't swap");
+          await expect(editions.setRoyaltyManager(ownerOnlyRoyaltyManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerSwapBlocked,
+          );
         });
 
         it("Remove attempts respect the wishes of current royalty manager", async function () {
           editions = editions.connect(fan1);
 
-          await expect(editions.removeRoyaltyManager()).to.be.revertedWith("Can't remove");
+          await expect(editions.removeRoyaltyManager()).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerRemoveBlocked,
+          );
 
           editions = editions.connect(editionsOwner);
 
@@ -392,7 +441,7 @@ describe("ERC721 Base functionality", () => {
         it("Royalty perentage BPS cannot be greater than 10000 for setting default royalty", async function () {
           await expect(
             editions.setDefaultRoyalty({ recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 10001 }),
-          ).to.be.revertedWith("> BPS limit");
+          ).to.be.revertedWithCustomError(editions, Errors.RoyaltyBPSInvalid);
         });
 
         it("Non-owner cannot set default royalty", async function () {
@@ -400,7 +449,7 @@ describe("ERC721 Base functionality", () => {
 
           await expect(
             editions.setDefaultRoyalty({ recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 100 }),
-          ).to.be.revertedWith("!owner");
+          ).to.be.revertedWithCustomError(editions, Errors.Unauthorized);
         });
 
         it("Owner can set default royalty", async function () {
@@ -435,7 +484,7 @@ describe("ERC721 Base functionality", () => {
                 { recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 10001 },
               ],
             ),
-          ).to.be.revertedWith("BPS invalid");
+          ).to.be.revertedWithCustomError(editions, Errors.RoyaltyBPSInvalid);
         });
 
         it("Non-owner cannot set granular royalties", async function () {
@@ -449,7 +498,7 @@ describe("ERC721 Base functionality", () => {
                 { recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 1000 },
               ],
             ),
-          ).to.be.revertedWith("!owner");
+          ).to.be.revertedWithCustomError(editions, Errors.Unauthorized);
         });
 
         it("Owner can set granular royalties", async function () {
@@ -502,7 +551,7 @@ describe("ERC721 Base functionality", () => {
 
           await expect(
             editions.setDefaultRoyalty({ recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 100 }),
-          ).to.be.revertedWith("Can't set");
+          ).to.be.revertedWithCustomError(editions, Errors.RoyaltySetBlocked);
 
           await expect(
             editions.setGranularRoyalties(
@@ -512,7 +561,7 @@ describe("ERC721 Base functionality", () => {
                 { recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 1000 },
               ],
             ),
-          ).to.be.revertedWith("Can't set");
+          ).to.be.revertedWithCustomError(editions, Errors.RoyaltySetBlocked);
 
           editions = editions.connect(editionsOwner);
 
@@ -550,7 +599,7 @@ describe("ERC721 Base functionality", () => {
 
           await expect(
             editions.setDefaultRoyalty({ recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 100 }),
-          ).to.be.revertedWith("Can't set");
+          ).to.be.revertedWithCustomError(editions, Errors.RoyaltySetBlocked);
 
           await expect(
             editions.setGranularRoyalties(
@@ -560,7 +609,7 @@ describe("ERC721 Base functionality", () => {
                 { recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 1000 },
               ],
             ),
-          ).to.be.revertedWith("Can't set");
+          ).to.be.revertedWithCustomError(editions, Errors.RoyaltySetBlocked);
         });
       });
     });
@@ -596,11 +645,17 @@ describe("ERC721 Base functionality", () => {
           .to.emit(editions, BaseEvents.MinterRegistrationChanged)
           .withArgs(fan1.address, true);
 
-        await expect(editions.registerMinter(fan1.address)).to.be.revertedWith("Already a minter");
+        await expect(editions.registerMinter(fan1.address)).to.be.revertedWithCustomError(
+          editions,
+          Errors.MinterRegistrationInvalid,
+        );
       });
 
       it("Can only unregister registered minters", async function () {
-        await expect(editions.unregisterMinter(fan1.address)).to.be.revertedWith("Not yet minter");
+        await expect(editions.unregisterMinter(fan1.address)).to.be.revertedWithCustomError(
+          editions,
+          Errors.MinterRegistrationInvalid,
+        );
 
         await editions.registerMinter(fan1.address);
 
@@ -613,12 +668,18 @@ describe("ERC721 Base functionality", () => {
     describe("Default token manager management", function () {
       describe("Current default token manager not existing", function () {
         it("An invalid default token manager cannot be set", async function () {
-          await expect(editions.setDefaultTokenManager(invalidTokenManager.address)).to.be.revertedWith("Invalid TM");
+          await expect(editions.setDefaultTokenManager(invalidTokenManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.InvalidManager,
+          );
         });
 
         it("Non owners cannot call", async function () {
           editions = editions.connect(fan1);
-          await expect(editions.setDefaultTokenManager(lockedTokenManager.address)).to.be.revertedWith("Not owner");
+          await expect(editions.setDefaultTokenManager(lockedTokenManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.Unauthorized,
+          );
         });
 
         it("Owner can set default token manager", async function () {
@@ -632,7 +693,10 @@ describe("ERC721 Base functionality", () => {
         });
 
         it("Cannot remove non-existent default token manager", async function () {
-          await expect(editions.removeDefaultTokenManager()).to.be.revertedWith("Default TM not existent");
+          await expect(editions.removeDefaultTokenManager()).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerDoesNotExist,
+          );
         });
       });
 
@@ -660,7 +724,10 @@ describe("ERC721 Base functionality", () => {
         it("Swap attempts respect the wishes of current default token manager", async function () {
           editions = editions.connect(fan1);
 
-          await expect(editions.setDefaultTokenManager(lockedTokenManager.address)).to.be.revertedWith("Can't swap");
+          await expect(editions.setDefaultTokenManager(lockedTokenManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerSwapBlocked,
+          );
 
           editions = editions.connect(editionsOwner);
 
@@ -672,13 +739,19 @@ describe("ERC721 Base functionality", () => {
             expect(await editions.tokenManager(0)).to.eql(lockedTokenManager.address);
           }
 
-          await expect(editions.setDefaultTokenManager(ownerOnlyTokenManager.address)).to.be.revertedWith("Can't swap");
+          await expect(editions.setDefaultTokenManager(ownerOnlyTokenManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerSwapBlocked,
+          );
         });
 
         it("Remove attempts respect the wishes of current default token", async function () {
           editions = editions.connect(fan1);
 
-          await expect(editions.removeDefaultTokenManager()).to.be.revertedWith("Can't remove");
+          await expect(editions.removeDefaultTokenManager()).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerRemoveBlocked,
+          );
 
           editions = editions.connect(editionsOwner);
 
@@ -696,12 +769,18 @@ describe("ERC721 Base functionality", () => {
     describe("Royalty manager management", function () {
       describe("Current royalty manager not existing", function () {
         it("An invalid royalty manager cannot be set", async function () {
-          await expect(editions.setRoyaltyManager(invalidRoyaltyManager.address)).to.be.revertedWith("Invalid RM");
+          await expect(editions.setRoyaltyManager(invalidRoyaltyManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.InvalidManager,
+          );
         });
 
         it("Non owners cannot call", async function () {
           editions = editions.connect(fan1);
-          await expect(editions.setRoyaltyManager(ownerOnlyRoyaltyManager.address)).to.be.revertedWith("Not owner");
+          await expect(editions.setRoyaltyManager(ownerOnlyRoyaltyManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.Unauthorized,
+          );
         });
 
         it("Owner can set royalty manager", async function () {
@@ -713,7 +792,10 @@ describe("ERC721 Base functionality", () => {
         });
 
         it("Cannot remove non-existent royalty manager", async function () {
-          await expect(editions.removeRoyaltyManager()).to.be.revertedWith("RM non-existent");
+          await expect(editions.removeRoyaltyManager()).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerDoesNotExist,
+          );
         });
       });
 
@@ -729,7 +811,10 @@ describe("ERC721 Base functionality", () => {
         it("Swap attempts respect the wishes of current royalty manager", async function () {
           editions = editions.connect(fan1);
 
-          await expect(editions.setRoyaltyManager(lockedRoyaltyManager.address)).to.be.revertedWith("Can't swap");
+          await expect(editions.setRoyaltyManager(lockedRoyaltyManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerSwapBlocked,
+          );
 
           editions = editions.connect(editionsOwner);
 
@@ -739,13 +824,19 @@ describe("ERC721 Base functionality", () => {
 
           expect(await editions.royaltyManager()).to.eql(lockedRoyaltyManager.address);
 
-          await expect(editions.setRoyaltyManager(ownerOnlyRoyaltyManager.address)).to.be.revertedWith("Can't swap");
+          await expect(editions.setRoyaltyManager(ownerOnlyRoyaltyManager.address)).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerSwapBlocked,
+          );
         });
 
         it("Remove attempts respect the wishes of current royalty manager", async function () {
           editions = editions.connect(fan1);
 
-          await expect(editions.removeRoyaltyManager()).to.be.revertedWith("Can't remove");
+          await expect(editions.removeRoyaltyManager()).to.be.revertedWithCustomError(
+            editions,
+            Errors.ManagerRemoveBlocked,
+          );
 
           editions = editions.connect(editionsOwner);
 
@@ -763,7 +854,7 @@ describe("ERC721 Base functionality", () => {
         it("Royalty perentage BPS cannot be greater than 10000 for setting default royalty", async function () {
           await expect(
             editions.setDefaultRoyalty({ recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 10001 }),
-          ).to.be.revertedWith("Over BPS limit");
+          ).to.be.revertedWithCustomError(editions, Errors.RoyaltyBPSInvalid);
         });
 
         it("Non-owner cannot set default royalty", async function () {
@@ -771,7 +862,7 @@ describe("ERC721 Base functionality", () => {
 
           await expect(
             editions.setDefaultRoyalty({ recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 100 }),
-          ).to.be.revertedWith("Not owner");
+          ).to.be.revertedWithCustomError(editions, Errors.Unauthorized);
         });
 
         it("Owner can set default royalty", async function () {
@@ -799,7 +890,7 @@ describe("ERC721 Base functionality", () => {
 
           await expect(
             editions.setDefaultRoyalty({ recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 100 }),
-          ).to.be.revertedWith("Can't set");
+          ).to.be.revertedWithCustomError(editions, Errors.RoyaltySetBlocked);
 
           editions = editions.connect(editionsOwner);
 
@@ -817,7 +908,7 @@ describe("ERC721 Base functionality", () => {
 
           await expect(
             editions.setDefaultRoyalty({ recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 100 }),
-          ).to.be.revertedWith("Can't set");
+          ).to.be.revertedWithCustomError(editions, Errors.RoyaltySetBlocked);
         });
       });
     });

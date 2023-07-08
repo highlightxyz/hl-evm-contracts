@@ -7,7 +7,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @dev Context variant with ERC2771 support.
- *      Openzeppelin contract slightly modified by highlight.xyz to be upgradeable.
+ *      Openzeppelin contract slightly modified by ishan@ highlight.xyz to be upgradeable.
  */
 abstract contract ERC2771ContextUpgradeable is Initializable {
     address private _trustedForwarder;

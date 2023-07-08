@@ -1,6 +1,5 @@
+import { MinimalForwarder } from "@highlightxyz/libnode/contracts/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-
-import { MinimalForwarder } from "../types";
 
 type Input2771 = {
   from: string; // signer address

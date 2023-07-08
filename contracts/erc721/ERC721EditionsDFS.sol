@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.10;
 
-import "./interfaces/IERC721Editions.sol";
+import "./interfaces/IERC721EditionsDFS.sol";
 import "./ERC721Base.sol";
 import "../utils/Ownable.sol";
 import "../metadata/interfaces/IMetadataRenderer.sol";
@@ -11,6 +11,7 @@ import "./interfaces/IEditionCollection.sol";
 
 import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
+import "../tokenManager/interfaces/ITokenManagerEditions.sol";
 import "./interfaces/IERC721EditionMint.sol";
 import "./MarketplaceFilterer/MarketplaceFilterer.sol";
 import "./erc721a/ERC721AUpgradeable.sol";
@@ -19,10 +20,11 @@ import "./erc721a/ERC721AUpgradeable.sol";
  * @title ERC721 Editions
  * @author highlight.xyz
  * @notice Multiple Editions Per Collection
+ * @dev Using Decentralized File Storage
  */
-contract ERC721Editions is
+contract ERC721EditionsDFS is
     IEditionCollection,
-    IERC721Editions,
+    IERC721EditionsDFS,
     IERC721EditionMint,
     ERC721Base,
     ERC721AUpgradeable,
@@ -56,6 +58,11 @@ contract ERC721Editions is
     error InvalidSize();
 
     /**
+     * @notice Throw when edition metadata update is blocked
+     */
+    error MetadataUpdateBlocked();
+
+    /**
      * @notice Contract metadata
      */
     string public contractURI;
@@ -64,11 +71,6 @@ contract ERC721Editions is
      * @notice Keeps track of next token ID
      */
     uint256 public nextTokenId;
-
-    /**
-     * @notice Generates metadata for contract and token
-     */
-    address private _metadataRendererAddress;
 
     /**
      * @notice Tracks current supply of each edition, edition indexed
@@ -86,6 +88,11 @@ contract ERC721Editions is
     uint256[] public editionStartId;
 
     /**
+     * @notice Track metadata per edition
+     */
+    mapping(uint256 => string) private _editionURI;
+
+    /**
      * @notice Emitted when edition is created
      * @param editionId Edition ID
      * @param size Edition size
@@ -100,7 +107,6 @@ contract ERC721Editions is
      * @ param _contractURI Contract metadata
      * @ param _name Name of token edition
      * @ param _symbol Symbol of the token edition
-     * @ param metadataRendererAddress Contract returning metadata for each edition
      * @ param trustedForwarder Trusted minimal forwarder
      * @ param initialMinters Initial minters to register
      * @ param useMarketplaceFiltererRegistry Denotes whether to use marketplace filterer registry
@@ -112,12 +118,11 @@ contract ERC721Editions is
             string memory _contractURI,
             string memory _name,
             string memory _symbol,
-            address metadataRendererAddress,
             address trustedForwarder,
             address[] memory initialMinters,
             bool useMarketplaceFiltererRegistry,
             address _observability
-        ) = abi.decode(data, (address, string, string, string, address, address, address[], bool, address));
+        ) = abi.decode(data, (address, string, string, string, address, address[], bool, address));
 
         IRoyaltyManager.Royalty memory _defaultRoyalty = IRoyaltyManager.Royalty(address(0), 0);
         _initialize(
@@ -127,7 +132,6 @@ contract ERC721Editions is
             _contractURI,
             _name,
             _symbol,
-            metadataRendererAddress,
             trustedForwarder,
             initialMinters,
             useMarketplaceFiltererRegistry,
@@ -137,19 +141,19 @@ contract ERC721Editions is
 
     /**
      * @notice Create edition
-     * @param _editionInfo Info of the Edition
+     * @param _editionUri Edition uri (metadata)
      * @param _editionSize Size of the Edition
      * @param _editionTokenManager Edition's token manager
      * @param editionRoyalty Edition royalty object for contract (optional)
      * @notice Used to create a new Edition within the Collection
      */
     function createEdition(
-        bytes memory _editionInfo,
+        string memory _editionUri,
         uint256 _editionSize,
         address _editionTokenManager,
         IRoyaltyManager.Royalty memory editionRoyalty
     ) external onlyOwner nonReentrant returns (uint256) {
-        uint256 editionId = _createEdition(_editionInfo, _editionSize, _editionTokenManager);
+        uint256 editionId = _createEdition(_editionUri, _editionSize, _editionTokenManager);
         if (editionRoyalty.recipientAddress != address(0)) {
             _royalties[editionId] = editionRoyalty;
         }
@@ -159,19 +163,19 @@ contract ERC721Editions is
 
     /**
      * @notice Create edition with auction
-     * @param _editionInfo Info of the Edition
+     * @param _editionUri Edition uri (metadata)
      * @param auctionData Auction data
      * @param _editionTokenManager Edition's token manager
      * @param editionRoyalty Edition royalty object for contract (optional)
      * @notice Used to create a new 1/1 Edition Collection within the contract, and an auction for it
      */
     function createEditionWithAuction(
-        bytes memory _editionInfo,
+        string memory _editionUri,
         bytes memory auctionData,
         address _editionTokenManager,
         IRoyaltyManager.Royalty memory editionRoyalty
     ) external onlyOwner nonReentrant returns (uint256) {
-        uint256 editionId = _createEdition(_editionInfo, 1, _editionTokenManager);
+        uint256 editionId = _createEdition(_editionUri, 1, _editionTokenManager);
         if (editionRoyalty.recipientAddress != address(0)) {
             _royalties[editionId] = editionRoyalty;
         }
@@ -288,6 +292,43 @@ contract ERC721Editions is
     }
 
     /**
+     * @notice Set an Edition's uri
+     * @param editionId Edition to set uri for
+     * @param _uri Uri to set on editions
+     */
+    function setEditionURI(uint256 editionId, string calldata _uri) external {
+        address _manager = tokenManager(editionId);
+        address msgSender = _msgSender();
+
+        if (_manager == address(0)) {
+            address tempOwner = owner();
+            if (msgSender != tempOwner) {
+                _revert(Unauthorized.selector);
+            }
+        } else {
+            if (
+                !ITokenManagerEditions(_manager).canUpdateEditionsMetadata(
+                    address(this),
+                    msgSender,
+                    editionId,
+                    bytes(_uri),
+                    ITokenManagerEditions.FieldUpdated.other
+                )
+            ) {
+                _revert(MetadataUpdateBlocked.selector);
+            }
+        }
+
+        _editionURI[editionId] = _uri;
+
+        uint256[] memory _ids = new uint256[](1);
+        _ids[0] = editionId;
+        string[] memory _uris = new string[](1);
+        _uris[0] = _uri;
+        observability.emitTokenURIsSet(_ids, _uris);
+    }
+
+    /**
      * @notice See {IEditionCollection-getEditionDetails}
      */
     function getEditionDetails(uint256 editionId) external view returns (EditionDetails memory) {
@@ -320,6 +361,17 @@ contract ERC721Editions is
      */
     function getEditionStartIds() external view returns (uint256[] memory) {
         return editionStartId;
+    }
+
+    /**
+     * @notice Total supply of NFTs on the Editions
+     */
+    function totalSupply() external view override returns (uint256) {
+        uint256 supply = 0;
+        for (uint256 i = 0; i < editionCurrentSupply.length; i++) {
+            supply += editionCurrentSupply[i];
+        }
+        return supply;
     }
 
     /**
@@ -437,7 +489,7 @@ contract ERC721Editions is
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
-        return IEditionsMetadataRenderer(_metadataRendererAddress).editionURI(editionId);
+        return _editionURI[editionId];
     }
 
     /**
@@ -449,7 +501,8 @@ contract ERC721Editions is
         if (!_exists(tokenId)) {
             _revert(TokenDoesNotExist.selector);
         }
-        return IMetadataRenderer(_metadataRendererAddress).tokenURI(tokenId);
+        uint256 editionId = getEditionId(tokenId);
+        return _editionURI[editionId];
     }
 
     /**
@@ -564,7 +617,6 @@ contract ERC721Editions is
      * @param _contractURI Contract metadata
      * @param _name Name of token edition
      * @param _symbol Symbol of the token edition
-     * @param metadataRendererAddress Contract returning metadata for each edition
      * @param trustedForwarder Trusted minimal forwarder
      * @param initialMinters Initial minters to register
      * @param useMarketplaceFiltererRegistry Denotes whether to use marketplace filterer registry
@@ -577,7 +629,6 @@ contract ERC721Editions is
         string memory _contractURI,
         string memory _name,
         string memory _symbol,
-        address metadataRendererAddress,
         address trustedForwarder,
         address[] memory initialMinters,
         bool useMarketplaceFiltererRegistry,
@@ -587,7 +638,6 @@ contract ERC721Editions is
         __ERC721A_init(_name, _symbol);
         __ERC2771ContextUpgradeable__init__(trustedForwarder);
         __MarketplaceFilterer__init__(useMarketplaceFiltererRegistry);
-        _metadataRendererAddress = metadataRendererAddress;
         uint256 initialMintersLength = initialMinters.length;
         for (uint256 i = 0; i < initialMintersLength; i++) {
             _minters.add(initialMinters[i]);
@@ -600,13 +650,13 @@ contract ERC721Editions is
 
     /**
      * @notice Create edition
-     * @param _editionInfo Info of the Edition
+     * @param _editionUri Edition uri (metadata)
      * @param _editionSize Size of the Edition
      * @param _editionTokenManager Edition's token manager
      * @notice Used to create a new Edition within the Collection
      */
     function _createEdition(
-        bytes memory _editionInfo,
+        string memory _editionUri,
         uint256 _editionSize,
         address _editionTokenManager
     ) private returns (uint256) {
@@ -622,7 +672,7 @@ contract ERC721Editions is
 
         nextTokenId += _editionSize;
 
-        IMetadataRenderer(_metadataRendererAddress).initializeMetadata(_editionInfo);
+        _editionURI[editionId] = _editionUri;
 
         if (_editionTokenManager != address(0)) {
             if (!_isValidTokenManager(_editionTokenManager)) {
@@ -642,11 +692,6 @@ contract ERC721Editions is
      */
     function _getEditionDetails(uint256 editionId) private view returns (EditionDetails memory) {
         return
-            EditionDetails(
-                IEditionsMetadataRenderer(_metadataRendererAddress).editionInfo(address(this), editionId).name,
-                editionMaxSupply[editionId],
-                editionCurrentSupply[editionId],
-                editionStartId[editionId]
-            );
+            EditionDetails("", editionMaxSupply[editionId], editionCurrentSupply[editionId], editionStartId[editionId]);
     }
 }

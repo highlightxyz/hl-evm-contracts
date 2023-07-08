@@ -23,7 +23,8 @@ import { UUPSUpgradeable } from "@openzeppelin/contracts/proxy/utils/UUPSUpgrade
 /**
  * @title Manages auctions
  * @notice Facilitates lion's share of auctions on HL
- * @dev Does not support meta-transactions, optimizing for gas efficiency currently - will support on a need basis.
+ * @dev Does not support meta-transactions at the moment.
+ *      Will support, if a need arises. Otherwise, save some gas without.
  * @author highlight.xyz
  */
 contract AuctionManager is

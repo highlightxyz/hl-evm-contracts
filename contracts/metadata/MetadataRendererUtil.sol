@@ -6,7 +6,7 @@ import { Base64 } from "@openzeppelin/contracts/utils/Base64.sol";
 
 /**
  * @title Metadata Render Helper
- * @author highlight.xyz, Zora
+ * @author highlight.xyz
  * @dev Helper methods for Metadata Rendering
  */
 library MetadataRendererUtil {
