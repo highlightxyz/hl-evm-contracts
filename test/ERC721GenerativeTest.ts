@@ -1,3 +1,7 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import {
   ERC721General,
   MinimalForwarder,
@@ -5,11 +9,7 @@ import {
   Observability,
   OwnerOnlyTokenManager,
   TotalLockedTokenManager,
-} from "@highlightxyz/libnode/contracts/types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
+} from "../types";
 import { Errors } from "./__utils__/data";
 import { setupGenerative, setupSystem } from "./__utils__/helpers";
 

@@ -1,3 +1,7 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { BigNumber } from "ethers";
+import { ethers } from "hardhat";
+
 import {
   AuctionManager__factory,
   ERC721Editions,
@@ -17,17 +21,8 @@ import {
   MintManager__factory,
   NativeMetaTransaction__factory,
   Observability__factory,
-} from "@highlightxyz/libnode/contracts/types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { BigNumber } from "ethers";
-import { ethers } from "hardhat";
-
-import {
-  signGatedMint,
-  signGatedMintWithMetaTxPacket,
-  signGatedSeriesMint,
-  signWETHMetaTxRequest,
-} from "../../tasks/mint/utils";
+} from "../../types";
+import { signGatedMint, signGatedMintWithMetaTxPacket, signGatedSeriesMint, signWETHMetaTxRequest } from "./mint";
 
 export const setupSingleEdition = async (
   observabilityAddress: string,

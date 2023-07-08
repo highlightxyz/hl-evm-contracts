@@ -1,3 +1,7 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import {
   AuctionManager,
   ConsensualNonTransferableTokenManager,
@@ -11,11 +15,7 @@ import {
   Observability,
   TotalLockedTokenManager,
   TransferAndBurnLockedTokenManager,
-} from "@highlightxyz/libnode/contracts/types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
+} from "../types";
 import { Errors } from "./__utils__/data";
 import { setupEditions, setupGeneral, setupSingleEdition, setupSystem } from "./__utils__/helpers";
 

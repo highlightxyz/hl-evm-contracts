@@ -1,3 +1,7 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import {
   AuctionManager,
   ERC721Editions,
@@ -8,12 +12,7 @@ import {
   MintManager,
   MintManager__factory,
   Observability,
-} from "@highlightxyz/libnode/contracts/types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
-import { getExpiredClaimTimestamp, getValidClaimTimestamp } from "../tasks/mint/utils";
+} from "../types";
 import { SAMPLE_VECTOR_1, SAMPLE_VECTOR_MUTABILITY_1 } from "./__utils__/data";
 import { Errors } from "./__utils__/data";
 import {
@@ -25,6 +24,7 @@ import {
   setupSingleEdition,
   setupSystem,
 } from "./__utils__/helpers";
+import { getExpiredClaimTimestamp, getValidClaimTimestamp } from "./__utils__/mint";
 
 //TODO: Gated MetaTx Tests
 //TODO: Variations of Vector Mint

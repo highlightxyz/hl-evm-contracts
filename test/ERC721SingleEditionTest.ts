@@ -1,14 +1,8 @@
-import {
-  ERC721SingleEdition,
-  EditionsMetadataRenderer,
-  MinimalForwarder,
-  MintManager,
-  Observability,
-} from "@highlightxyz/libnode/contracts/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
+import { ERC721SingleEdition, EditionsMetadataRenderer, MinimalForwarder, MintManager, Observability } from "../types";
 import { Errors } from "./__utils__/data";
 import { setupSingleEdition, setupSystem } from "./__utils__/helpers";
 
