@@ -528,9 +528,11 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
     /**
      * @dev Returns the storage slot and value for the approved address of `tokenId`.
      */
-    function _getApprovedSlotAndAddress(
-        uint256 tokenId
-    ) private view returns (uint256 approvedAddressSlot, address approvedAddress) {
+    function _getApprovedSlotAndAddress(uint256 tokenId)
+        private
+        view
+        returns (uint256 approvedAddressSlot, address approvedAddress)
+    {
         ERC721AStorage.TokenApprovalRef storage tokenApproval = ERC721AStorage.layout()._tokenApprovals[tokenId];
         // The following is equivalent to `approvedAddress = _tokenApprovals[tokenId].value`.
         assembly {
@@ -556,7 +558,11 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
      *
      * Emits a {Transfer} event.
      */
-    function transferFrom(address from, address to, uint256 tokenId) public payable virtual override {
+    function transferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) public payable virtual override {
         uint256 prevOwnershipPacked = _packedOwnershipOf(tokenId);
 
         // Mask `from` to the lower 160 bits, in case the upper bits somehow aren't clean.
@@ -632,7 +638,11 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
     /**
      * @dev Equivalent to `safeTransferFrom(from, to, tokenId, '')`.
      */
-    function safeTransferFrom(address from, address to, uint256 tokenId) public payable virtual override {
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) public payable virtual override {
         safeTransferFrom(from, to, tokenId, "");
     }
 
@@ -708,7 +718,12 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
      *
      * Emits a {Transfer} event for each mint.
      */
-    function _mint(address to, uint256 quantity, uint256 startTokenId, uint256 currentIndex) internal virtual {
+    function _mint(
+        address to,
+        uint256 quantity,
+        uint256 startTokenId,
+        uint256 currentIndex
+    ) internal virtual {
         if (quantity >= _UINT_24_MAX) {
             _revert(QuantityTooLarge.selector);
         }
@@ -799,7 +814,11 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
      *
      * Emits an {Approval} event.
      */
-    function _approve(address to, uint256 tokenId, bool approvalCheck) internal virtual {
+    function _approve(
+        address to,
+        uint256 tokenId,
+        bool approvalCheck
+    ) internal virtual {
         address owner = ownerOf(tokenId);
 
         if (approvalCheck && _msgSenderERC721A() != owner)

@@ -110,7 +110,11 @@ contract EditionsMetadataRenderer is
     /**
      * See {IEditionsMetadataRenderer-updateName}
      */
-    function updateName(address editionsAddress, uint256 editionId, string calldata name) external nonReentrant {
+    function updateName(
+        address editionsAddress,
+        uint256 editionId,
+        string calldata name
+    ) external nonReentrant {
         require(
             _verifyCanUpdateMetadata(editionsAddress, editionId, name, ITokenManagerEditions.FieldUpdated.name),
             "Can't update metadata"
@@ -390,10 +394,11 @@ contract EditionsMetadataRenderer is
      * @param _info Edition Token Info
      * @param _editionSize Size of the Edition
      */
-    function _createEditionMetadata(
-        TokenEditionInfo memory _info,
-        uint256 _editionSize
-    ) internal pure returns (string memory) {
+    function _createEditionMetadata(TokenEditionInfo memory _info, uint256 _editionSize)
+        internal
+        pure
+        returns (string memory)
+    {
         string memory _size = "Unlimited";
         if (_editionSize > 0) {
             _size = MetadataRendererUtil.numberToString(_editionSize);
@@ -484,10 +489,11 @@ contract EditionsMetadataRenderer is
      * @param _imageUrl Edition image url
      * @param _animationUrl Edition animation url
      */
-    function _tokenMediaData(
-        string memory _imageUrl,
-        string memory _animationUrl
-    ) internal pure returns (string memory) {
+    function _tokenMediaData(string memory _imageUrl, string memory _animationUrl)
+        internal
+        pure
+        returns (string memory)
+    {
         bool hasImage = bytes(_imageUrl).length > 0;
         bool hasAnimation = bytes(_animationUrl).length > 0;
         // solhint-disable quotes
@@ -508,7 +514,11 @@ contract EditionsMetadataRenderer is
     /**
      * See {IEditionsMetadataRenderer-updateName}
      */
-    function _updateName(address editionsAddress, uint256 editionId, string calldata name) private {
+    function _updateName(
+        address editionsAddress,
+        uint256 editionId,
+        string calldata name
+    ) private {
         tokenInfos[editionsAddress][editionId].name = name;
         emit NameUpdated(editionsAddress, editionId, name);
     }
@@ -516,7 +526,11 @@ contract EditionsMetadataRenderer is
     /**
      * See {IEditionsMetadataRenderer-updateDescription}
      */
-    function _updateDescription(address editionsAddress, uint256 editionId, string calldata description) private {
+    function _updateDescription(
+        address editionsAddress,
+        uint256 editionId,
+        string calldata description
+    ) private {
         tokenInfos[editionsAddress][editionId].description = description;
         emit DescriptionUpdated(editionsAddress, editionId, description);
     }
@@ -524,7 +538,11 @@ contract EditionsMetadataRenderer is
     /**
      * See {IEditionsMetadataRenderer-updateImageUrl}
      */
-    function _updateImageUrl(address editionsAddress, uint256 editionId, string calldata imageUrl) private {
+    function _updateImageUrl(
+        address editionsAddress,
+        uint256 editionId,
+        string calldata imageUrl
+    ) private {
         tokenInfos[editionsAddress][editionId].imageUrl = imageUrl;
         emit ImageUrlUpdated(editionsAddress, editionId, imageUrl);
     }
@@ -532,7 +550,11 @@ contract EditionsMetadataRenderer is
     /**
      * See {IEditionsMetadataRenderer-updateAnimationUrl}
      */
-    function _updateAnimationUrl(address editionsAddress, uint256 editionId, string calldata animationUrl) private {
+    function _updateAnimationUrl(
+        address editionsAddress,
+        uint256 editionId,
+        string calldata animationUrl
+    ) private {
         tokenInfos[editionsAddress][editionId].animationUrl = animationUrl;
         emit AnimationUrlUpdated(editionsAddress, editionId, animationUrl);
     }
@@ -540,7 +562,11 @@ contract EditionsMetadataRenderer is
     /**
      * See {IEditionsMetadataRenderer-updateExternalUrl}
      */
-    function _updateExternalUrl(address editionsAddress, uint256 editionId, string calldata externalUrl) private {
+    function _updateExternalUrl(
+        address editionsAddress,
+        uint256 editionId,
+        string calldata externalUrl
+    ) private {
         tokenInfos[editionsAddress][editionId].externalUrl = externalUrl;
         emit ExternalUrlUpdated(editionsAddress, editionId, externalUrl);
     }
@@ -548,7 +574,11 @@ contract EditionsMetadataRenderer is
     /**
      * See {IEditionsMetadataRenderer-updateAttributes}
      */
-    function _updateAttributes(address editionsAddress, uint256 editionId, string calldata attributes) private {
+    function _updateAttributes(
+        address editionsAddress,
+        uint256 editionId,
+        string calldata attributes
+    ) private {
         tokenInfos[editionsAddress][editionId].attributes = attributes;
         emit AttributesUpdated(editionsAddress, editionId, attributes);
     }

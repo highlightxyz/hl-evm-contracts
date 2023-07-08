@@ -652,7 +652,11 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param numTokensToMint Number of tokens to mint
      * @param mintRecipient Who to mint the NFT(s) to
      */
-    function vectorMintEdition721(uint256 vectorId, uint64 numTokensToMint, address mintRecipient) external payable {
+    function vectorMintEdition721(
+        uint256 vectorId,
+        uint64 numTokensToMint,
+        address mintRecipient
+    ) external payable {
         address msgSender = _msgSender();
 
         Vector memory _vector = vectors[vectorId];
@@ -1056,7 +1060,11 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param signature Signed + encoded claim
      * @param msgSender Expected claimer
      */
-    function _verifyAndUpdateClaim(Claim calldata claim, bytes calldata signature, address msgSender) private {
+    function _verifyAndUpdateClaim(
+        Claim calldata claim,
+        bytes calldata signature,
+        address msgSender
+    ) private {
         address signer = _claimSigner(claim, signature);
         if (msgSender != claim.claimer) {
             _revert(SenderNotClaimer.selector);
@@ -1400,10 +1408,11 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param claim Claim
      * @param signature Claim signature
      */
-    function _claimWithMetaTxPacketSigner(
-        ClaimWithMetaTxPacket calldata claim,
-        bytes calldata signature
-    ) private view returns (address) {
+    function _claimWithMetaTxPacketSigner(ClaimWithMetaTxPacket calldata claim, bytes calldata signature)
+        private
+        view
+        returns (address)
+    {
         return
             _hashTypedDataV4(
                 keccak256(
@@ -1535,10 +1544,11 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      * @param claimNonce Claim's unique identifier
      * @param offchainVectorId Offchain vector ID of claim
      */
-    function _claimWithMetaTxABIEncoded2(
-        bytes32 claimNonce,
-        bytes32 offchainVectorId
-    ) private pure returns (bytes memory) {
+    function _claimWithMetaTxABIEncoded2(bytes32 claimNonce, bytes32 offchainVectorId)
+        private
+        pure
+        returns (bytes memory)
+    {
         return abi.encode(claimNonce, offchainVectorId);
     }
 

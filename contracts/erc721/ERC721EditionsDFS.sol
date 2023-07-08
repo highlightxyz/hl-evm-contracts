@@ -207,10 +207,12 @@ contract ERC721EditionsDFS is
     /**
      * @notice See {IERC721EditionMint-mintOneToRecipient}
      */
-    function mintOneToRecipient(
-        uint256 editionId,
-        address recipient
-    ) external onlyMinter nonReentrant returns (uint256) {
+    function mintOneToRecipient(uint256 editionId, address recipient)
+        external
+        onlyMinter
+        nonReentrant
+        returns (uint256)
+    {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -242,10 +244,12 @@ contract ERC721EditionsDFS is
     /**
      * @notice See {IERC721EditionMint-mintOneToRecipients}
      */
-    function mintOneToRecipients(
-        uint256 editionId,
-        address[] memory recipients
-    ) external onlyMinter nonReentrant returns (uint256) {
+    function mintOneToRecipients(uint256 editionId, address[] memory recipients)
+        external
+        onlyMinter
+        nonReentrant
+        returns (uint256)
+    {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -341,9 +345,11 @@ contract ERC721EditionsDFS is
     /**
      * @notice See {IEditionCollection-getEditionsDetailsAndUri}
      */
-    function getEditionsDetailsAndUri(
-        uint256[] calldata editionIds
-    ) external view returns (EditionDetails[] memory, string[] memory) {
+    function getEditionsDetailsAndUri(uint256[] calldata editionIds)
+        external
+        view
+        returns (EditionDetails[] memory, string[] memory)
+    {
         uint256 editionIdsLength = editionIds.length;
         EditionDetails[] memory editionsDetails = new EditionDetails[](editionIdsLength);
         string[] memory uris = new string[](editionIdsLength);
@@ -455,10 +461,13 @@ contract ERC721EditionsDFS is
      * @param _tokenId Token id
      * @param _salePrice Sale price of token
      */
-    function royaltyInfo(
-        uint256 _tokenId,
-        uint256 _salePrice
-    ) public view virtual override returns (address receiver, uint256 royaltyAmount) {
+    function royaltyInfo(uint256 _tokenId, uint256 _salePrice)
+        public
+        view
+        virtual
+        override
+        returns (address receiver, uint256 royaltyAmount)
+    {
         return ERC721Base.royaltyInfo(_getEditionId(_tokenId), _salePrice);
     }
 
@@ -508,9 +517,13 @@ contract ERC721EditionsDFS is
     /**
      * @notice See {IERC721AUpgradeable-supportsInterface}.
      */
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(IERC165Upgradeable, ERC721AUpgradeable) returns (bool) {
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(IERC165Upgradeable, ERC721AUpgradeable)
+        returns (bool)
+    {
         return ERC721AUpgradeable.supportsInterface(interfaceId);
     }
 
@@ -520,7 +533,11 @@ contract ERC721EditionsDFS is
      * @param recipients Recipients of newly minted tokens
      * @param _amount Amount minted to each recipient
      */
-    function _mintEditions(uint256 editionId, address[] memory recipients, uint256 _amount) internal returns (uint256) {
+    function _mintEditions(
+        uint256 editionId,
+        address[] memory recipients,
+        uint256 _amount
+    ) internal returns (uint256) {
         uint256 recipientsLength = recipients.length;
 
         uint256 maxSupply = editionMaxSupply[editionId];
@@ -548,7 +565,11 @@ contract ERC721EditionsDFS is
      * @param recipient Recipient of newly minted token
      * @param _amount Amount minted to recipient
      */
-    function _mintEditionsToOne(uint256 editionId, address recipient, uint256 _amount) internal returns (uint256) {
+    function _mintEditionsToOne(
+        uint256 editionId,
+        address recipient,
+        uint256 _amount
+    ) internal returns (uint256) {
         uint256 maxSupply = editionMaxSupply[editionId];
         uint256 currentSupply = editionCurrentSupply[editionId];
         uint256 startId = editionStartId[editionId];

@@ -120,10 +120,11 @@ abstract contract ERC721GeneralBase is
     /**
      * @notice See {IERC721GeneralMint-mintSameAmountToMultipleRecipients}
      */
-    function mintSameAmountToMultipleRecipients(
-        address[] calldata recipients,
-        uint256 amount
-    ) external onlyMinter nonReentrant {
+    function mintSameAmountToMultipleRecipients(address[] calldata recipients, uint256 amount)
+        external
+        onlyMinter
+        nonReentrant
+    {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -159,10 +160,11 @@ abstract contract ERC721GeneralBase is
     /**
      * @notice See {IERC721GeneralMint-mintSpecificTokensToOneRecipient}
      */
-    function mintSpecificTokensToOneRecipient(
-        address recipient,
-        uint256[] calldata tokenIds
-    ) external onlyMinter nonReentrant {
+    function mintSpecificTokensToOneRecipient(address recipient, uint256[] calldata tokenIds)
+        external
+        onlyMinter
+        nonReentrant
+    {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -348,9 +350,13 @@ abstract contract ERC721GeneralBase is
     /**
      * @notice See {IERC165-supportsInterface}.
      */
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(IERC165Upgradeable, ERC721AUpgradeable) returns (bool) {
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(IERC165Upgradeable, ERC721AUpgradeable)
+        returns (bool)
+    {
         return ERC721AUpgradeable.supportsInterface(interfaceId);
     }
 

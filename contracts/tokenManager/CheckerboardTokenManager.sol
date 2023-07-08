@@ -29,7 +29,11 @@ contract CheckerboardTokenManager is ITokenManagerEditions, IPostBurn, Interface
      */
     event SetAllowedMove(string allowedMove);
 
-    constructor(address platform, address _editionsMetadataRenderer, string memory firstAllowedMoveImageUrl) Ownable() {
+    constructor(
+        address platform,
+        address _editionsMetadataRenderer,
+        string memory firstAllowedMoveImageUrl
+    ) Ownable() {
         _transferOwnership(platform);
         editionsMetadataRenderer = _editionsMetadataRenderer;
         currentAllowedMoveImageUri = firstAllowedMoveImageUrl;
@@ -48,8 +52,8 @@ contract CheckerboardTokenManager is ITokenManagerEditions, IPostBurn, Interface
      * @notice See {ITokenManager-canUpdateMetadata}
      */
     function canUpdateMetadata(
-        address /* sender */,
-        uint256 /* id */,
+        address, /* sender */
+        uint256, /* id */
         bytes calldata /* newTokenImageUri */
     ) external view override returns (bool) {
         return false;
@@ -61,7 +65,7 @@ contract CheckerboardTokenManager is ITokenManagerEditions, IPostBurn, Interface
     function canUpdateEditionsMetadata(
         address editionsAddress,
         address sender,
-        uint256 /* editionId */,
+        uint256, /* editionId */
         bytes calldata newTokenImageUri,
         FieldUpdated fieldUpdated
     ) external view override returns (bool) {
@@ -78,7 +82,7 @@ contract CheckerboardTokenManager is ITokenManagerEditions, IPostBurn, Interface
      */
     function canSwap(
         address sender,
-        uint256 /* id */,
+        uint256, /* id */
         address /* newTokenManager */
     ) external view override returns (bool) {
         return Ownable(msg.sender).owner() == sender;
@@ -87,7 +91,10 @@ contract CheckerboardTokenManager is ITokenManagerEditions, IPostBurn, Interface
     /**
      * @notice See {ITokenManager-canRemoveItself}
      */
-    function canRemoveItself(address sender, uint256 /* id */) external view override returns (bool) {
+    function canRemoveItself(
+        address sender,
+        uint256 /* id */
+    ) external view override returns (bool) {
         return Ownable(msg.sender).owner() == sender;
     }
 
@@ -95,16 +102,24 @@ contract CheckerboardTokenManager is ITokenManagerEditions, IPostBurn, Interface
     /**
      * @notice See {IPostBurn-postBurn}
      */
-    function postBurn(address /* operator */, address /* sender */, uint256 /* id */) external pure override {}
+    function postBurn(
+        address, /* operator */
+        address, /* sender */
+        uint256 /* id */
+    ) external pure override {}
 
     /* solhint-enable no-empty-blocks */
 
     /**
      * @notice See {IERC165-supportsInterface}.
      */
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(InterfaceSupportEditionsTokenManager) returns (bool) {
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(InterfaceSupportEditionsTokenManager)
+        returns (bool)
+    {
         return
             interfaceId == type(IPostBurn).interfaceId ||
             InterfaceSupportEditionsTokenManager.supportsInterface(interfaceId);

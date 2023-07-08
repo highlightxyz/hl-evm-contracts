@@ -19,7 +19,11 @@ interface IERC721EditionMint {
      * @param recipient Recipient of minted NFTs
      * @param amount Amount of NFTs minted
      */
-    function mintAmountToRecipient(uint256 editionId, address recipient, uint256 amount) external returns (uint256);
+    function mintAmountToRecipient(
+        uint256 editionId,
+        address recipient,
+        uint256 amount
+    ) external returns (uint256);
 
     /**
      * @notice Mints one NFT each to a number of recipients

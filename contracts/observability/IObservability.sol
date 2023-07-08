@@ -223,10 +223,8 @@ interface IObservability {
     /**
      * @notice Emit GranularRoyaltiesSet
      */
-    function emitGranularRoyaltiesSet(
-        uint256[] calldata ids,
-        IRoyaltyManager.Royalty[] calldata _newRoyalties
-    ) external;
+    function emitGranularRoyaltiesSet(uint256[] calldata ids, IRoyaltyManager.Royalty[] calldata _newRoyalties)
+        external;
 
     /**
      * @notice Emit RoyaltyManagerChanged
@@ -299,5 +297,9 @@ interface IObservability {
     /**
      * @notice Emit Transfer
      */
-    function emitTransfer(address from, address to, uint256 tokenId) external;
+    function emitTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) external;
 }

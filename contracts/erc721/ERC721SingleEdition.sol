@@ -144,10 +144,12 @@ contract ERC721SingleEdition is
     /**
      * @notice See {IERC721EditionMint-mintOneToRecipient}
      */
-    function mintOneToRecipient(
-        uint256 editionId,
-        address recipient
-    ) external onlyMinter nonReentrant returns (uint256) {
+    function mintOneToRecipient(uint256 editionId, address recipient)
+        external
+        onlyMinter
+        nonReentrant
+        returns (uint256)
+    {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -179,10 +181,12 @@ contract ERC721SingleEdition is
     /**
      * @notice See {IERC721EditionMint-mintOneToRecipients}
      */
-    function mintOneToRecipients(
-        uint256 editionId,
-        address[] memory recipients
-    ) external onlyMinter nonReentrant returns (uint256) {
+    function mintOneToRecipients(uint256 editionId, address[] memory recipients)
+        external
+        onlyMinter
+        nonReentrant
+        returns (uint256)
+    {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -249,9 +253,11 @@ contract ERC721SingleEdition is
     /**
      * @notice See {IEditionCollection-getEditionsDetailsAndUri}
      */
-    function getEditionsDetailsAndUri(
-        uint256[] calldata editionIds
-    ) external view returns (EditionDetails[] memory, string[] memory) {
+    function getEditionsDetailsAndUri(uint256[] calldata editionIds)
+        external
+        view
+        returns (EditionDetails[] memory, string[] memory)
+    {
         if (editionIds.length != 1) {
             _revert(InvalidEditionIdsLength.selector);
         }
@@ -348,7 +354,7 @@ contract ERC721SingleEdition is
      * @param _salePrice Sale price of token
      */
     function royaltyInfo(
-        uint256 /* _tokenId */,
+        uint256, /* _tokenId */
         uint256 _salePrice
     ) public view virtual override returns (address receiver, uint256 royaltyAmount) {
         return ERC721MinimizedBase.royaltyInfo(0, _salePrice);
@@ -389,9 +395,13 @@ contract ERC721SingleEdition is
     /**
      * @notice See {IERC721AUpgradeable-supportsInterface}.
      */
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(IERC165Upgradeable, ERC721AUpgradeable) returns (bool) {
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(IERC165Upgradeable, ERC721AUpgradeable)
+        returns (bool)
+    {
         return ERC721AUpgradeable.supportsInterface(interfaceId);
     }
 
@@ -453,9 +463,11 @@ contract ERC721SingleEdition is
     /**
      * @dev For more efficient reverts.
      */
-    function _revert(
-        bytes4 errorSelector
-    ) internal pure override(ERC721AUpgradeable, ERC721MinimizedBase, MarketplaceFilterer) {
+    function _revert(bytes4 errorSelector)
+        internal
+        pure
+        override(ERC721AUpgradeable, ERC721MinimizedBase, MarketplaceFilterer)
+    {
         ERC721AUpgradeable._revert(errorSelector);
     }
 

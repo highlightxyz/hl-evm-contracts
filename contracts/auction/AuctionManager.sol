@@ -187,10 +187,12 @@ contract AuctionManager is
     /**
      * @notice See {IAuctionManager-createAuctionForNewToken}
      */
-    function createAuctionForNewToken(
-        bytes32 auctionId,
-        IAuctionManager.EnglishAuction memory auction
-    ) external override nonReentrant onlyCollectionOrCollectionOwner(auction) {
+    function createAuctionForNewToken(bytes32 auctionId, IAuctionManager.EnglishAuction memory auction)
+        external
+        override
+        nonReentrant
+        onlyCollectionOrCollectionOwner(auction)
+    {
         _createAuction(auctionId, auction, true);
     }
 
@@ -222,10 +224,12 @@ contract AuctionManager is
     /**
      * @notice See {IAuctionManager-createAuctionForExistingToken}
      */
-    function createAuctionForExistingToken(
-        bytes32 auctionId,
-        IAuctionManager.EnglishAuction memory auction
-    ) external override nonReentrant onlyCollectionOrCollectionOwner(auction) {
+    function createAuctionForExistingToken(bytes32 auctionId, IAuctionManager.EnglishAuction memory auction)
+        external
+        override
+        nonReentrant
+        onlyCollectionOrCollectionOwner(auction)
+    {
         IERC721(auction.collection).safeTransferFrom(auction.owner, address(this), auction.tokenId);
         _createAuction(auctionId, auction, false);
     }
@@ -374,9 +378,13 @@ contract AuctionManager is
     /**
      * @notice See {IAuctionManager-cancelAuctionOnChain}
      */
-    function cancelAuctionOnChain(
-        bytes32 auctionId
-    ) external override nonReentrant auctionIsLiveOnChain(auctionId) onlyAuctionOwner(auctionId) {
+    function cancelAuctionOnChain(bytes32 auctionId)
+        external
+        override
+        nonReentrant
+        auctionIsLiveOnChain(auctionId)
+        onlyAuctionOwner(auctionId)
+    {
         IAuctionManager.EnglishAuction memory auction = _auctions[auctionId];
         IAuctionManager.HighestBidderData memory highestBidderData = _highestBidders[auctionId];
         require(highestBidderData.bidder == address(0), "Reserve price met already");
@@ -393,10 +401,11 @@ contract AuctionManager is
     /**
      * @notice See {IAuctionManager-updatePaymentRecipient}
      */
-    function updatePaymentRecipient(
-        bytes32 auctionId,
-        address payable newPaymentRecipient
-    ) external onlyAuctionOwner(auctionId) auctionIsLiveOnChain(auctionId) {
+    function updatePaymentRecipient(bytes32 auctionId, address payable newPaymentRecipient)
+        external
+        onlyAuctionOwner(auctionId)
+        auctionIsLiveOnChain(auctionId)
+    {
         _auctions[auctionId].paymentRecipient = newPaymentRecipient;
 
         emit PaymentRecipientUpdated(auctionId, _auctions[auctionId].owner, newPaymentRecipient);
@@ -405,10 +414,11 @@ contract AuctionManager is
     /**
      * @notice See {IAuctionManager-updatePreferredNFTRecipient}
      */
-    function updatePreferredNFTRecipient(
-        bytes32 auctionId,
-        address newPreferredNFTRecipient
-    ) external onlyHighestBidder(auctionId) auctionIsLiveOnChain(auctionId) {
+    function updatePreferredNFTRecipient(bytes32 auctionId, address newPreferredNFTRecipient)
+        external
+        onlyHighestBidder(auctionId)
+        auctionIsLiveOnChain(auctionId)
+    {
         _highestBidders[auctionId].preferredNFTRecipient = newPreferredNFTRecipient;
 
         emit PreferredNFTRecipientUpdated(auctionId, _auctions[auctionId].owner, newPreferredNFTRecipient);
@@ -433,10 +443,11 @@ contract AuctionManager is
     /**
      * @notice See {IAuctionManager-updateEndTime}
      */
-    function updateEndTime(
-        bytes32 auctionId,
-        uint256 newEndTime
-    ) external onlyAuctionOwner(auctionId) auctionIsLiveOnChain(auctionId) {
+    function updateEndTime(bytes32 auctionId, uint256 newEndTime)
+        external
+        onlyAuctionOwner(auctionId)
+        auctionIsLiveOnChain(auctionId)
+    {
         require(_highestBidders[auctionId].bidder == address(0), "Can't update after first valid bid");
         _auctions[auctionId].endTime = newEndTime;
 
@@ -464,9 +475,7 @@ contract AuctionManager is
     /**
      * @notice See {IAuctionManager-getFullAuctionData}
      */
-    function getFullAuctionData(
-        bytes32 auctionId
-    )
+    function getFullAuctionData(bytes32 auctionId)
         external
         view
         returns (
@@ -481,9 +490,7 @@ contract AuctionManager is
     /**
      * @notice See {IAuctionManager-getFullAuctionsData}
      */
-    function getFullAuctionsData(
-        bytes32[] calldata auctionIds
-    )
+    function getFullAuctionsData(bytes32[] calldata auctionIds)
         external
         view
         returns (
@@ -555,10 +562,9 @@ contract AuctionManager is
      * @param currentHighestBidderData Data of the last highest bid
      * @param currency Auction currency
      */
-    function _processLastHighestBid(
-        IAuctionManager.HighestBidderData memory currentHighestBidderData,
-        address currency
-    ) private {
+    function _processLastHighestBid(IAuctionManager.HighestBidderData memory currentHighestBidderData, address currency)
+        private
+    {
         if (currency == address(0)) {
             (bool sentToRecipient, bytes memory dataRecipient) = currentHighestBidderData.bidder.call{
                 value: currentHighestBidderData.amount
@@ -639,10 +645,11 @@ contract AuctionManager is
      * @param claim Claim
      * @param signature Claim signature
      */
-    function _claimSigner(
-        IAuctionManager.Claim calldata claim,
-        bytes calldata signature
-    ) private view returns (address) {
+    function _claimSigner(IAuctionManager.Claim calldata claim, bytes calldata signature)
+        private
+        view
+        returns (address)
+    {
         return _hashTypedDataV4(keccak256(_claimABIEncoded(claim))).recover(signature);
     }
 

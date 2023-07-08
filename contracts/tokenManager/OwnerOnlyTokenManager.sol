@@ -14,7 +14,7 @@ contract OwnerOnlyTokenManager is ITokenManager, InterfaceSupportTokenManager {
      */
     function canUpdateMetadata(
         address sender,
-        uint256 /* id */,
+        uint256, /* id */
         bytes calldata /* newTokenUri */
     ) external view override returns (bool) {
         return Ownable(msg.sender).owner() == sender;
@@ -25,7 +25,7 @@ contract OwnerOnlyTokenManager is ITokenManager, InterfaceSupportTokenManager {
      */
     function canSwap(
         address sender,
-        uint256 /* id */,
+        uint256, /* id */
         address /* newTokenManager */
     ) external view override returns (bool) {
         return Ownable(msg.sender).owner() == sender;
@@ -34,7 +34,10 @@ contract OwnerOnlyTokenManager is ITokenManager, InterfaceSupportTokenManager {
     /**
      * @notice See {ITokenManager-canRemoveItself}
      */
-    function canRemoveItself(address sender, uint256 /* id */) external view override returns (bool) {
+    function canRemoveItself(
+        address sender,
+        uint256 /* id */
+    ) external view override returns (bool) {
         return Ownable(msg.sender).owner() == sender;
     }
 }
