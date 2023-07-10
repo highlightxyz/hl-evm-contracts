@@ -4,25 +4,19 @@ import { ethers } from "hardhat";
 
 import {
   AuctionManager,
-  ERC721Editions,
-  EditionsMetadataRenderer,
+  ERC721EditionsDFS,
   LockedTokenManager,
   MinimalForwarder,
   MintManager,
   Observability,
 } from "../types";
 import { Errors } from "./__utils__/data";
-import { setupEditions, setupSystem } from "./__utils__/helpers";
+import { setupEditionsDFS, setupSystem } from "./__utils__/helpers";
 import { getValidClaimTimestamp } from "./__utils__/mint";
 
-const defaultEditionInfo = ethers.utils.defaultAbiCoder.encode(
-  ["tuple(string, string, string, string, string, string)"],
-  [["name", "description", "imageUrl", "animationUrl", "externalUrl", "attributes"]],
-);
-
-describe("ERC721Editions functionality", () => {
+describe("ERC721EditionsDFS functionality", () => {
   let lockedTokenManager: LockedTokenManager;
-  let editions: ERC721Editions;
+  let editions: ERC721EditionsDFS;
   let initialPlatformExecutor: SignerWithAddress,
     mintManagerOwner: SignerWithAddress,
     editionsMetadataOwner: SignerWithAddress,
@@ -30,7 +24,6 @@ describe("ERC721Editions functionality", () => {
     editionsOwner: SignerWithAddress,
     fan1: SignerWithAddress;
 
-  let emr: EditionsMetadataRenderer;
   let mintManager: MintManager;
   let auctionManager: AuctionManager;
   let trustedForwarder: MinimalForwarder;
@@ -47,12 +40,11 @@ describe("ERC721Editions functionality", () => {
     [initialPlatformExecutor, mintManagerOwner, editionsMetadataOwner, platformPaymentAddress, editionsOwner, fan1] =
       await ethers.getSigners();
     const {
-      emrProxy,
       mintManagerProxy,
       minimalForwarder,
       observability: observabilityInstance,
       auctionManagerProxy,
-      editionsImplementationAddress,
+      editionsDFSImplementationAddress,
     } = await setupSystem(
       platformPaymentAddress.address,
       mintManagerOwner.address,
@@ -61,24 +53,22 @@ describe("ERC721Editions functionality", () => {
       editionsOwner,
     );
 
-    emr = emrProxy;
     mintManager = mintManagerProxy;
     trustedForwarder = minimalForwarder;
     observability = observabilityInstance;
     auctionManager = auctionManagerProxy;
-    editionsImplementation = editionsImplementationAddress;
+    editionsImplementation = editionsDFSImplementationAddress;
 
     lockedTokenManager = await (await ethers.getContractFactory("LockedTokenManager")).deploy();
   });
 
   beforeEach(async () => {
-    editions = await setupEditions(
+    editions = await setupEditionsDFS(
       observability.address,
       editionsImplementation,
       mintManager.address,
       auctionManager.address,
       trustedForwarder.address,
-      emr.address,
       editionsOwner,
     );
     auctionData = ethers.utils.defaultAbiCoder.encode(
@@ -96,19 +86,19 @@ describe("ERC721Editions functionality", () => {
   describe("createEdition", async function () {
     it("Edition size has to be greater than 0", async function () {
       await expect(
-        editions.createEdition(defaultEditionInfo, 0, ethers.constants.AddressZero, zeroRoyalty),
+        editions.createEdition("editionUri", 0, ethers.constants.AddressZero, zeroRoyalty),
       ).to.be.revertedWithCustomError(editions, Errors.InvalidSize);
     });
 
     it("Non-owner cannot create edition", async function () {
       editions = editions.connect(fan1);
       await expect(
-        editions.createEdition(defaultEditionInfo, 100, ethers.constants.AddressZero, zeroRoyalty),
+        editions.createEdition("editionUri", 100, ethers.constants.AddressZero, zeroRoyalty),
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
     it("Can create edition without passing in edition token manager", async function () {
-      await expect(editions.createEdition(defaultEditionInfo, 100, ethers.constants.AddressZero, zeroRoyalty))
+      await expect(editions.createEdition("editionUri", 100, ethers.constants.AddressZero, zeroRoyalty))
         .to.emit(editions, "EditionCreated")
         .withArgs(0, 100, ethers.constants.AddressZero);
 
@@ -116,7 +106,7 @@ describe("ERC721Editions functionality", () => {
     });
 
     it("Can create edition with passing in edition token manager", async function () {
-      await expect(editions.createEdition(defaultEditionInfo, 100, lockedTokenManager.address, zeroRoyalty))
+      await expect(editions.createEdition("editionUri", 100, lockedTokenManager.address, zeroRoyalty))
         .to.emit(editions, "EditionCreated")
         .withArgs(0, 100, lockedTokenManager.address);
 
@@ -128,7 +118,7 @@ describe("ERC721Editions functionality", () => {
     it("Non-owner cannot create edition/auction", async function () {
       editions = editions.connect(fan1);
       await expect(
-        editions.createEditionWithAuction(defaultEditionInfo, auctionData, ethers.constants.AddressZero, zeroRoyalty),
+        editions.createEditionWithAuction("editionUri", auctionData, ethers.constants.AddressZero, zeroRoyalty),
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
@@ -146,7 +136,7 @@ describe("ERC721Editions functionality", () => {
       );
 
       await expect(
-        editions.createEditionWithAuction(defaultEditionInfo, auctionData, ethers.constants.AddressZero, zeroRoyalty),
+        editions.createEditionWithAuction("editionUri", auctionData, ethers.constants.AddressZero, zeroRoyalty),
       )
         .to.emit(editions, "EditionCreated")
         .withArgs(0, 1, ethers.constants.AddressZero);
@@ -173,7 +163,7 @@ describe("ERC721Editions functionality", () => {
       );
 
       await expect(
-        editions.createEditionWithAuction(defaultEditionInfo, auctionData, lockedTokenManager.address, zeroRoyalty),
+        editions.createEditionWithAuction("editionUri", auctionData, lockedTokenManager.address, zeroRoyalty),
       )
         .to.emit(editions, "EditionCreated")
         .withArgs(0, 1, lockedTokenManager.address);
@@ -189,7 +179,7 @@ describe("ERC721Editions functionality", () => {
 
   describe("Minting", function () {
     beforeEach(async function () {
-      await expect(editions.createEdition(defaultEditionInfo, 5, lockedTokenManager.address, zeroRoyalty))
+      await expect(editions.createEdition("editionUri", 5, lockedTokenManager.address, zeroRoyalty))
         .to.emit(editions, "EditionCreated")
         .withArgs(0, 5, lockedTokenManager.address);
 
@@ -242,9 +232,9 @@ describe("ERC721Editions functionality", () => {
                 return x;
               }
             }),
-          ).to.eql(["name", 5, i, 1]);
+          ).to.eql(["", 5, i, 1]);
           const res = await editions.getEditionsDetailsAndUri([0]);
-          expect(res[0][0][0]).to.equal("name");
+          expect(res[0][0][0]).to.equal("");
           expect(res[0][0][1].toNumber()).to.equal(5);
           expect(res[0][0][2].toNumber()).to.equal(i);
           expect(res[0][0][3].toNumber()).to.equal(1);
@@ -327,13 +317,14 @@ describe("ERC721Editions functionality", () => {
               return x;
             }
           }),
-        ).to.eql(["name", 5, 3, 1]);
+        ).to.eql(["", 5, 3, 1]);
 
         const res = await editions.getEditionsDetailsAndUri([0]);
-        expect(res[0][0][0]).to.equal("name");
+        expect(res[0][0][0]).to.equal("");
         expect(res[0][0][1].toNumber()).to.equal(5);
         expect(res[0][0][2].toNumber()).to.equal(3);
         expect(res[0][0][3].toNumber()).to.equal(1);
+        expect(res[1][0]).to.equal("editionUri");
       });
 
       it("Minter can mint validly (running variation)", async function () {
@@ -359,10 +350,10 @@ describe("ERC721Editions functionality", () => {
                 return x;
               }
             }),
-          ).to.eql(["name", 5, (i + 1) * 2, 1]);
+          ).to.eql(["", 5, (i + 1) * 2, 1]);
 
           const res = await editions.getEditionsDetailsAndUri([0]);
-          expect(res[0][0][0]).to.equal("name");
+          expect(res[0][0][0]).to.equal("");
           expect(res[0][0][1].toNumber()).to.equal(5);
           expect(res[0][0][2].toNumber()).to.equal((i + 1) * 2);
           expect(res[0][0][3].toNumber()).to.equal(1);
@@ -446,10 +437,10 @@ describe("ERC721Editions functionality", () => {
               return x;
             }
           }),
-        ).to.eql(["name", 5, 3, 1]);
+        ).to.eql(["", 5, 3, 1]);
 
         const res = await editions.getEditionsDetailsAndUri([0]);
-        expect(res[0][0][0]).to.equal("name");
+        expect(res[0][0][0]).to.equal("");
         expect(res[0][0][1].toNumber()).to.equal(5);
         expect(res[0][0][2].toNumber()).to.equal(3);
         expect(res[0][0][3].toNumber()).to.equal(1);
@@ -480,10 +471,10 @@ describe("ERC721Editions functionality", () => {
                 return x;
               }
             }),
-          ).to.eql(["name", 5, (i + 1) * 2, 1]);
+          ).to.eql(["", 5, (i + 1) * 2, 1]);
 
           const res = await editions.getEditionsDetailsAndUri([0]);
-          expect(res[0][0][0]).to.equal("name");
+          expect(res[0][0][0]).to.equal("");
           expect(res[0][0][1].toNumber()).to.equal(5);
           expect(res[0][0][2].toNumber()).to.equal((i + 1) * 2);
           expect(res[0][0][3].toNumber()).to.equal(1);
@@ -578,7 +569,7 @@ describe("ERC721Editions functionality", () => {
           .to.emit(editions, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 4);
 
-        await expect(editions.createEdition(defaultEditionInfo, 10, lockedTokenManager.address, zeroRoyalty))
+        await expect(editions.createEdition("editionUri", 10, lockedTokenManager.address, zeroRoyalty))
           .to.emit(editions, "EditionCreated")
           .withArgs(1, 10, lockedTokenManager.address);
 
@@ -613,10 +604,10 @@ describe("ERC721Editions functionality", () => {
                 return x;
               }
             }),
-          ).to.eql(["name", 10, (i + 1) * 4, 6]);
+          ).to.eql(["", 10, (i + 1) * 4, 6]);
 
           const res = await editions.getEditionsDetailsAndUri([1]);
-          expect(res[0][0][0]).to.equal("name");
+          expect(res[0][0][0]).to.equal("");
           expect(res[0][0][1].toNumber()).to.equal(10);
           expect(res[0][0][2].toNumber()).to.equal((i + 1) * 4);
           expect(res[0][0][3].toNumber()).to.equal(6);

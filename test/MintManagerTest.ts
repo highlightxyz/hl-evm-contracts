@@ -14,6 +14,7 @@ import {
   Observability,
 } from "../types";
 import { SAMPLE_VECTOR_1, SAMPLE_VECTOR_MUTABILITY_1 } from "./__utils__/data";
+import { Errors } from "./__utils__/data";
 import {
   generateClaim,
   generateClaimWithMetaTxPackets,
@@ -166,8 +167,9 @@ describe("Mint Manager", () => {
       editionsImplementation = editionsImplementationAddress;
       singleEditionImplementation = singleEditionImplementationAddress;
       generalImplementation = generalImplementationAddress;
-      await expect(mintManager.addPlatformExecutor(ethers.constants.AddressZero)).to.be.revertedWith(
-        "Cannot set to null address",
+      await expect(mintManager.addPlatformExecutor(ethers.constants.AddressZero)).to.be.revertedWithCustomError(
+        mintManager,
+        Errors.InvalidExecutorChanged,
       );
       expect(await mintManager.platformExecutors()).to.not.include(ethers.constants.AddressZero);
     });
@@ -199,8 +201,9 @@ describe("Mint Manager", () => {
         "PlatformExecutorChanged",
       );
       expect(await mintManager.platformExecutors()).to.include(additionalPlatformExecutor.address);
-      await expect(mintManager.addPlatformExecutor(additionalPlatformExecutor.address)).to.be.revertedWith(
-        "Already added",
+      await expect(mintManager.addPlatformExecutor(additionalPlatformExecutor.address)).to.be.revertedWithCustomError(
+        mintManager,
+        Errors.InvalidExecutorChanged,
       );
     });
     it("Should reject all platform executor changes from non owner", async () => {
@@ -505,8 +508,9 @@ describe("Mint Manager", () => {
           claimNonce,
         );
         const mintManagerForFan1 = mintManager.connect(fan1);
-        await expect(mintManagerForFan1.gatedSeriesMint(claim, signature, fan1.address)).to.be.revertedWith(
-          "Invalid mint fee",
+        await expect(mintManagerForFan1.gatedSeriesMint(claim, signature, fan1.address)).to.be.revertedWithCustomError(
+          mintManager,
+          Errors.MintFeeTooLow,
         );
         await expect(
           mintManagerForFan1.gatedSeriesMint(claim, signature, fan1.address, {
@@ -537,14 +541,15 @@ describe("Mint Manager", () => {
           mintManagerForFan1.gatedSeriesMint(claim, signature, fan1.address, {
             value: mintFeeWei.mul(claim.numTokensToMint),
           }),
-        ).to.be.revertedWith("Invalid amount");
+        ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
         await expect(
           mintManagerForFan1.gatedSeriesMint(claim, signature, fan1.address, {
             value: ethers.utils.parseEther("0.09"),
           }),
-        ).to.be.revertedWith("Invalid amount");
-        await expect(mintManagerForFan1.gatedSeriesMint(claim, signature, fan1.address)).to.be.revertedWith(
-          "Invalid amount",
+        ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
+        await expect(mintManagerForFan1.gatedSeriesMint(claim, signature, fan1.address)).to.be.revertedWithCustomError(
+          mintManager,
+          Errors.InvalidPaymentAmount,
         );
         await expect(
           mintManagerForFan1.gatedSeriesMint(claim, signature, fan1.address, {
@@ -617,7 +622,7 @@ describe("Mint Manager", () => {
         const mintManagerForFan1 = mintManager.connect(fan1);
         await expect(
           mintManagerForFan1.gatedSeriesMintChooseToken(claim, signature, fan1.address, [1]),
-        ).to.be.revertedWith("Invalid mint fee");
+        ).to.be.revertedWithCustomError(mintManager, Errors.MintFeeTooLow);
         await expect(
           mintManagerForFan1.gatedSeriesMintChooseToken(claim, signature, fan1.address, [1], { value: mintFeeWei }),
         ).to.emit(general, "Transfer");
@@ -643,15 +648,15 @@ describe("Mint Manager", () => {
           mintManagerForFan1.gatedSeriesMintChooseToken(claim, signature, fan1.address, [2, 3], {
             value: mintFeeWei.mul(2),
           }),
-        ).to.be.revertedWith("Invalid amount");
+        ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
         await expect(
           mintManagerForFan1.gatedSeriesMintChooseToken(claim, signature, fan1.address, [2, 3], {
             value: ethers.utils.parseEther("0.02"),
           }),
-        ).to.be.revertedWith("Invalid amount");
+        ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
         await expect(
           mintManagerForFan1.gatedSeriesMintChooseToken(claim, signature, fan1.address, [2, 3]),
-        ).to.be.revertedWith("Invalid amount");
+        ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
         await expect(
           mintManagerForFan1.gatedSeriesMintChooseToken(claim, signature, fan1.address, [2, 3], {
             value: mintFeeWei.mul(2).add(ethers.utils.parseEther("0.02")),
@@ -681,7 +686,7 @@ describe("Mint Manager", () => {
           mintManagerForFan1.gatedSeriesMintChooseToken(claim, signature, fan1.address, [4, 2], {
             value: mintFeeWei.mul(2),
           }),
-        ).to.be.revertedWith("ERC721: token minted");
+        ).to.be.revertedWithCustomError(general, Errors.TokenMintedAlready);
       });
 
       it("Invalid claim signer should fail", async function () {
@@ -1016,15 +1021,15 @@ describe("Mint Manager", () => {
             mintManagerForFan1.gatedMintEdition721(claim, signature, fan1.address, {
               value: mintFeeWei.mul(claim.numTokensToMint),
             }),
-          ).to.be.revertedWith("Invalid amount");
+          ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
           await expect(
             mintManagerForFan1.gatedMintEdition721(claim, signature, fan1.address, {
               value: claim.pricePerToken,
             }),
-          ).to.be.revertedWith("Invalid amount");
-          await expect(mintManagerForFan1.gatedMintEdition721(claim, signature, fan1.address)).to.be.revertedWith(
-            "Invalid amount",
-          );
+          ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
+          await expect(
+            mintManagerForFan1.gatedMintEdition721(claim, signature, fan1.address),
+          ).to.be.revertedWithCustomError(mintManagerForFan1, Errors.InvalidPaymentAmount);
           await expect(
             mintManagerForFan1.gatedMintEdition721(claim, signature, fan1.address, {
               value: mintFeeWei.mul(claim.numTokensToMint).add(claim.pricePerToken),
@@ -1137,7 +1142,7 @@ describe("Mint Manager", () => {
             mintManagerForFan1.gatedMintEdition721(claim, signature, fan1.address, {
               value: mintFeeWei.mul(claim.numTokensToMint),
             }),
-          ).to.be.revertedWith("Invalid claim");
+          ).to.be.revertedWithCustomError(mintManagerForFan1, Errors.InvalidClaim);
           expect((await mintManager.offchainVectorsClaimState(claim.offchainVectorId)).toNumber()).to.be.equal(10);
           expect(
             (await mintManager.getNumClaimedPerUserOffchainVector(claim.offchainVectorId, fan1.address)).toNumber(),
@@ -1165,7 +1170,7 @@ describe("Mint Manager", () => {
             mintManagerForFan1.gatedMintEdition721(claim, signature, fan1.address, {
               value: mintFeeWei.mul(claim.numTokensToMint),
             }),
-          ).to.be.revertedWith("Invalid claim");
+          ).to.be.revertedWithCustomError(mintManagerForFan1, Errors.InvalidClaim);
           expect((await mintManager.offchainVectorsClaimState(claim.offchainVectorId)).toNumber()).to.be.equal(10);
           expect(
             (await mintManager.getNumClaimedPerUserOffchainVector(claim.offchainVectorId, fan1.address)).toNumber(),
@@ -1196,7 +1201,7 @@ describe("Mint Manager", () => {
             mintManagerForFan1.gatedMintEdition721(claim, signature, fan1.address, {
               value: mintFeeWei.mul(claim.numTokensToMint),
             }),
-          ).to.be.revertedWith("Sold out");
+          ).to.be.revertedWithCustomError(singleEdition, Errors.SoldOut);
         });
       });
       describe("Multiple Editions", function () {
@@ -1489,7 +1494,7 @@ describe("Mint Manager", () => {
             mintManagerForFan1.gatedMintEdition721(claim, signature, fan1.address, {
               value: mintFeeWei.mul(claim.numTokensToMint),
             }),
-          ).to.be.revertedWith("Invalid claim");
+          ).to.be.revertedWithCustomError(mintManagerForFan1, Errors.InvalidClaim);
           expect((await mintManager.offchainVectorsClaimState(claim.offchainVectorId)).toNumber()).to.be.equal(10);
           expect(
             (await mintManager.getNumClaimedPerUserOffchainVector(claim.offchainVectorId, fan1.address)).toNumber(),
@@ -1520,7 +1525,7 @@ describe("Mint Manager", () => {
             mintManagerForFan1.gatedMintEdition721(claim, signature, fan1.address, {
               value: mintFeeWei.mul(claim.numTokensToMint),
             }),
-          ).to.be.revertedWith("Invalid claim");
+          ).to.be.revertedWithCustomError(mintManagerForFan1, Errors.InvalidClaim);
           expect(
             (await mintManager.getNumClaimedPerUserOffchainVector(claim.offchainVectorId, fan1.address)).toNumber(),
           ).to.be.equal(10);
@@ -1550,7 +1555,7 @@ describe("Mint Manager", () => {
             mintManagerForFan1.gatedMintEdition721(claim, signature, fan1.address, {
               value: mintFeeWei.mul(claim.numTokensToMint),
             }),
-          ).to.be.revertedWith("Sold out");
+          ).to.be.revertedWithCustomError(multipleEdition, Errors.SoldOut);
         });
       });
     });
@@ -1612,7 +1617,10 @@ describe("Mint Manager", () => {
       const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
       const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1(0, 0, 1);
       await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
-      await expect(mintManagerForEditionOwner.updateVector(vectorId, vector)).to.be.revertedWith("Updates frozen");
+      await expect(mintManagerForEditionOwner.updateVector(vectorId, vector)).to.be.revertedWithCustomError(
+        mintManagerForEditionOwner,
+        Errors.VectorUpdateActionFrozen,
+      );
       vectorId += 1;
     });
     it("Should be able to update vector for contract by Owner", async () => {
@@ -1631,7 +1639,10 @@ describe("Mint Manager", () => {
       const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
       const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1(1, 0, 0);
       await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
-      await expect(mintManagerForEditionOwner.deleteVector(vectorId)).to.be.revertedWith("Delete frozen");
+      await expect(mintManagerForEditionOwner.deleteVector(vectorId)).to.be.revertedWithCustomError(
+        mintManagerForEditionOwner,
+        Errors.VectorUpdateActionFrozen,
+      );
       vectorId += 1;
     });
     it("Should be able to delete vector for contract by Owner", async () => {
@@ -1650,7 +1661,10 @@ describe("Mint Manager", () => {
       const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
       const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1(0, 1, 0);
       await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
-      await expect(mintManagerForEditionOwner.pauseVector(vectorId)).to.be.revertedWith("Pauses frozen");
+      await expect(mintManagerForEditionOwner.pauseVector(vectorId)).to.be.revertedWithCustomError(
+        mintManagerForEditionOwner,
+        Errors.VectorUpdateActionFrozen,
+      );
       vectorId += 1;
     });
     it("Should be able to pause vector for contract by Owner", async () => {
@@ -1682,14 +1696,21 @@ describe("Mint Manager", () => {
       const mintManagerForEditionOwner = mintManager.connect(editionsOwner);
       await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
       mintManager = mintManager.connect(fan1);
-      await expect(mintManager.createVector(vector, vectorMutability, 0)).to.be.revertedWith("Not contract owner");
-      await expect(mintManager.updateVector(vectorId, vector)).to.be.revertedWith("Not contract owner");
-      await expect(mintManager.updateVectorMutability(vectorId, vectorMutability)).to.be.revertedWith(
-        "Not contract owner",
+      await expect(mintManager.createVector(vector, vectorMutability, 0)).to.be.revertedWithCustomError(
+        mintManager,
+        Errors.Unauthorized,
       );
-      await expect(mintManager.pauseVector(vectorId)).to.be.revertedWith("Not contract owner");
-      await expect(mintManager.unpauseVector(vectorId)).to.be.revertedWith("Not contract owner");
-      await expect(mintManager.deleteVector(vectorId)).to.be.revertedWith("Not contract owner");
+      await expect(mintManager.updateVector(vectorId, vector)).to.be.revertedWithCustomError(
+        mintManager,
+        Errors.Unauthorized,
+      );
+      await expect(mintManager.updateVectorMutability(vectorId, vectorMutability)).to.be.revertedWithCustomError(
+        mintManager,
+        Errors.Unauthorized,
+      );
+      await expect(mintManager.pauseVector(vectorId)).to.be.revertedWithCustomError(mintManager, Errors.Unauthorized);
+      await expect(mintManager.unpauseVector(vectorId)).to.be.revertedWithCustomError(mintManager, Errors.Unauthorized);
+      await expect(mintManager.deleteVector(vectorId)).to.be.revertedWithCustomError(mintManager, Errors.Unauthorized);
 
       mintManager = mintManager.connect(editionsOwner);
     });
@@ -1824,17 +1845,18 @@ describe("Mint Manager", () => {
             "VectorCreated",
           );
           const mintManagerForFan1 = await mintManagerWithOwner.connect(fan1);
-          await expect(mintManagerForFan1.vectorMintEdition721(1, 1, fan1.address)).to.be.revertedWith(
-            "Invalid amount",
+          await expect(mintManagerForFan1.vectorMintEdition721(1, 1, fan1.address)).to.be.revertedWithCustomError(
+            mintManagerForFan1,
+            Errors.InvalidPaymentAmount,
           );
           await expect(
             mintManagerForFan1.vectorMintEdition721(1, 1, fan1.address, {
               value: ethers.utils.parseEther("0.00000001"),
             }),
-          ).to.be.revertedWith("Invalid amount");
+          ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
           await expect(
             mintManagerForFan1.vectorMintEdition721(1, 1, fan1.address, { value: mintFeeWei }),
-          ).to.be.revertedWith("Invalid amount");
+          ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
           await expect(
             mintManagerForFan1.vectorMintEdition721(1, 1, fan1.address, {
               value: mintFeeWei.add(ethers.utils.parseEther("0.00000001")),
@@ -1857,15 +1879,16 @@ describe("Mint Manager", () => {
           );
           mintManagerForFan1 = await mintManagerWithOwner.connect(fan1);
           meERC721 = multipleEditionERC721;
-          await expect(mintManagerForFan1.vectorMintEdition721(1, 1, fan1.address)).to.be.revertedWith(
-            "Invalid mint fee",
+          await expect(mintManagerForFan1.vectorMintEdition721(1, 1, fan1.address)).to.be.revertedWithCustomError(
+            mintManager,
+            Errors.MintFeeTooLow,
           );
         });
 
         it("Should be able to mint one to one recipient", async function () {
           await expect(
             mintManagerForFan1.vectorMintEdition721(1, 1, fan1.address, { value: mintFeeWei.sub(1) }),
-          ).to.be.revertedWith("Invalid mint fee");
+          ).to.be.revertedWithCustomError(mintManager, Errors.MintFeeTooLow);
 
           const mintManagerForPlatform = mintManagerForFan1.connect(mintManagerOwner);
           await expect(mintManagerForPlatform.updatePlatformMintFee(mintFeeWei.sub(1))).to.not.be.reverted;

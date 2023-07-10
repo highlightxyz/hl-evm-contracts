@@ -3,8 +3,9 @@
 
 pragma solidity 0.8.10;
 
-import "./ERC721Upgradeable.sol";
+import "../../erc721/erc721a/ERC721AUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/StringsUpgradeable.sol";
 
 /**
  * @title Appending URI storage utilities onto template ERC721 contract
@@ -12,7 +13,12 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
  * @dev ERC721 token with storage based token URI management. OpenZeppelin template edited by Highlight
  */
 /* solhint-disable */
-abstract contract ERC721URIStorageUpgradeable is Initializable, ERC721Upgradeable {
+abstract contract ERC721URIStorageUpgradeable is Initializable, ERC721AUpgradeable {
+    /**
+     * @notice Throw when token doesn't exist
+     */
+    error TokenDoesNotExist();
+
     function __ERC721URIStorage_init() internal onlyInitializing {}
 
     function __ERC721URIStorage_init_unchained() internal onlyInitializing {}
@@ -62,7 +68,9 @@ abstract contract ERC721URIStorageUpgradeable is Initializable, ERC721Upgradeabl
      * @dev See {IERC721Metadata-tokenURI}.
      */
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
-        _requireMinted(tokenId);
+        if (!_exists(tokenId)) {
+            _revert(TokenDoesNotExist.selector);
+        }
 
         string memory _tokenURI = _tokenURIs[tokenId];
 

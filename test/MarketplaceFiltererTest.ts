@@ -10,6 +10,7 @@ import {
   Observability,
   OperatorFilterRegistry,
 } from "../types";
+import { Errors } from "./__utils__/data";
 import { setupSingleEdition, setupSystem } from "./__utils__/helpers";
 
 describe("MarketplaceFilterer functionality", () => {
@@ -193,13 +194,14 @@ describe("MarketplaceFilterer functionality", () => {
       );
 
       singleEdition = singleEdition.connect(editionsOwner);
-      await expect(singleEdition.transferFrom(fan1.address, editionsOwner.address, 1)).to.be.revertedWith(
-        "ERC721: from not owner",
+      await expect(singleEdition.transferFrom(fan1.address, editionsOwner.address, 1)).to.be.revertedWithCustomError(
+        singleEdition,
+        Errors.TransferFromIncorrectOwner,
       );
 
       await expect(
         singleEdition["safeTransferFrom(address,address,uint256)"](fan1.address, editionsOwner.address, 1),
-      ).to.be.revertedWith("ERC721: from not owner");
+      ).to.be.revertedWithCustomError(singleEdition, Errors.TransferFromIncorrectOwner);
     });
   });
 });

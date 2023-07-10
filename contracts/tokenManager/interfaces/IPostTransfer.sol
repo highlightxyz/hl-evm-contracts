@@ -17,7 +17,13 @@ interface IPostTransfer {
      * @param id Transferred token's id
      * @param data Arbitrary data
      */
-    function postSafeTransferFrom(address operator, address from, address to, uint256 id, bytes memory data) external;
+    function postSafeTransferFrom(
+        address operator,
+        address from,
+        address to,
+        uint256 id,
+        bytes memory data
+    ) external;
 
     /**
      * @notice Hook called by community after transfers, if token manager of transferred token implements
@@ -27,5 +33,10 @@ interface IPostTransfer {
      * @param to Token(s) recipient
      * @param id Transferred token's id
      */
-    function postTransferFrom(address operator, address from, address to, uint256 id) external;
+    function postTransferFrom(
+        address operator,
+        address from,
+        address to,
+        uint256 id
+    ) external;
 }

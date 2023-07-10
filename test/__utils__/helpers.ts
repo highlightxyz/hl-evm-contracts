@@ -5,11 +5,15 @@ import { ethers } from "hardhat";
 import {
   AuctionManager__factory,
   ERC721Editions,
+  ERC721EditionsDFS,
+  ERC721EditionsDFS__factory,
   ERC721Editions__factory,
   ERC721General,
   ERC721General__factory,
   ERC721Generative__factory,
   ERC721SingleEdition,
+  ERC721SingleEditionDFS,
+  ERC721SingleEditionDFS__factory,
   ERC721SingleEdition__factory,
   EditionsMetadataRenderer__factory,
   IERC20__factory,
@@ -84,6 +88,58 @@ export const setupSingleEdition = async (
   return ERC721SingleEdition__factory.connect(singleEdition.address, creator);
 };
 
+export const setupSingleEditionDFS = async (
+  observabilityAddress: string,
+  singleEditionDFSImplementationAddress: string,
+  mintManagerAddress: string,
+  trustedForwarderAddress: string,
+  creator: SignerWithAddress,
+  size: number,
+  name: string,
+  symbol: string,
+  useMarketplaceFilter = false,
+  defaultTokenManager = ethers.constants.AddressZero,
+  royaltyRecipient = ethers.constants.AddressZero,
+  royaltyPercentage = 0,
+  contractUri = "",
+  editionUri = "editionUri",
+): Promise<ERC721SingleEditionDFS> => {
+  const initializeData = ethers.utils.defaultAbiCoder.encode(
+    [
+      "address",
+      "tuple(address, uint16)",
+      "address",
+      "string",
+      "string",
+      "string",
+      "uint256",
+      "address",
+      "address",
+      "bool",
+      "string",
+    ],
+    [
+      creator.address,
+      [royaltyRecipient, royaltyPercentage],
+      defaultTokenManager,
+      contractUri,
+      name,
+      symbol,
+      size,
+      trustedForwarderAddress,
+      mintManagerAddress,
+      useMarketplaceFilter,
+      editionUri,
+    ],
+  );
+
+  const SingleEditionDFS = await (
+    await ethers.getContractFactory("SingleEditionDFS")
+  ).deploy(singleEditionDFSImplementationAddress, initializeData, observabilityAddress);
+  const singleEditionDFS = await SingleEditionDFS.deployed();
+  return ERC721SingleEditionDFS__factory.connect(singleEditionDFS.address, creator);
+};
+
 // sets up MultipleEditions without first edition
 export const setupEditions = async (
   observabilityAddress: string,
@@ -133,6 +189,63 @@ export const setupEditions = async (
   const multipleEditions = await MultipleEditions.deployed();
 
   const multipleEditionsCreator = ERC721Editions__factory.connect(multipleEditions.address, creator);
+
+  if (defaultTokenManager != ethers.constants.AddressZero) {
+    const tx = await multipleEditionsCreator.setDefaultTokenManager(defaultTokenManager);
+    await tx.wait();
+  }
+
+  return multipleEditionsCreator;
+};
+
+// sets up MultipleEditionsDFS without first edition
+export const setupEditionsDFS = async (
+  observabilityAddress: string,
+  editionsDFSImplementationAddress: string,
+  mintManagerAddress: string,
+  auctionManagerAddress: string,
+  trustedForwarderAddress: string,
+  creator: SignerWithAddress,
+  defaultTokenManager = ethers.constants.AddressZero,
+  royaltyRecipient = ethers.constants.AddressZero,
+  royaltyPercentage = 0,
+  editionUri = "",
+  useMarketplaceFilter = false,
+  name = "dummy",
+  symbol = "DMY",
+  contractUri = "dummyContractMetadata",
+): Promise<ERC721EditionsDFS> => {
+  const initializeData = ethers.utils.defaultAbiCoder.encode(
+    ["address", "string", "string", "string", "address", "address[]", "bool", "address"],
+    [
+      creator.address,
+      contractUri,
+      name,
+      symbol,
+      trustedForwarderAddress,
+      [mintManagerAddress, auctionManagerAddress],
+      useMarketplaceFilter,
+      observabilityAddress,
+    ],
+  );
+
+  const MultipleEditionsDFS = await (
+    await ethers.getContractFactory("MultipleEditionsDFS", creator)
+  ).deploy(
+    editionsDFSImplementationAddress,
+    initializeData,
+    editionUri,
+    0,
+    ethers.constants.AddressZero,
+    {
+      recipientAddress: royaltyRecipient,
+      royaltyPercentageBPS: royaltyPercentage,
+    },
+    ethers.utils.arrayify("0x"),
+  );
+  const multipleEditionsDFS = await MultipleEditionsDFS.deployed();
+
+  const multipleEditionsCreator = ERC721EditionsDFS__factory.connect(multipleEditionsDFS.address, creator);
 
   if (defaultTokenManager != ethers.constants.AddressZero) {
     const tx = await multipleEditionsCreator.setDefaultTokenManager(defaultTokenManager);
@@ -202,6 +315,56 @@ export const setupMultipleEdition = async (
   const multipleEditions = await MultipleEditions.deployed();
 
   return ERC721Editions__factory.connect(multipleEditions.address, creator);
+};
+
+// sets up MultipleEditionsDFS with first edition
+export const setupMultipleEditionDFS = async (
+  observabilityAddress: string,
+  editionsDFSImplementationAddress: string,
+  mintVectorAddress: string,
+  auctionManagerAddress: string,
+  trustedForwarderAddress: string,
+  creator: SignerWithAddress,
+  size: number,
+  symbol: string,
+  editionUri: string = "uri",
+  useMarketplaceFilter = false,
+  contractName = "contractName",
+  royaltyPercentage = 0,
+  royaltyRecipient = ethers.constants.AddressZero,
+  contractUri = "",
+): Promise<ERC721EditionsDFS> => {
+  const initializeData = ethers.utils.defaultAbiCoder.encode(
+    ["address", "string", "string", "string", "address", "address[]", "bool", "address"],
+    [
+      creator.address,
+      contractUri,
+      contractName,
+      symbol,
+      trustedForwarderAddress,
+      [mintVectorAddress, auctionManagerAddress],
+      useMarketplaceFilter,
+      observabilityAddress,
+    ],
+  );
+
+  const MultipleEditionsDFS = await (
+    await ethers.getContractFactory("MultipleEditionsDFS", creator)
+  ).deploy(
+    editionsDFSImplementationAddress,
+    initializeData,
+    editionUri,
+    size,
+    ethers.constants.AddressZero,
+    {
+      recipientAddress: royaltyRecipient,
+      royaltyPercentageBPS: royaltyPercentage,
+    },
+    ethers.utils.arrayify("0x"),
+  );
+  const multipleEditionsDFS = await MultipleEditionsDFS.deployed();
+
+  return ERC721EditionsDFS__factory.connect(multipleEditionsDFS.address, creator);
 };
 
 export const generateClaim = async (
@@ -581,10 +744,20 @@ export async function setupSystem(
   const editions = await editionsFactory.deploy();
   await editions.deployed();
 
+  //Deploy EditionsDFS
+  const editionsDFSFactory = await ethers.getContractFactory("ERC721EditionsDFS");
+  const editionsDFS = await editionsDFSFactory.deploy();
+  await editionsDFS.deployed();
+
   //Deploy Single Edition
   const singleEditionFactory = await ethers.getContractFactory("ERC721SingleEdition");
   const singleEdition = await singleEditionFactory.deploy();
   await singleEdition.deployed();
+
+  //Deploy Single Edition DFS
+  const singleEditionDFSFactory = await ethers.getContractFactory("ERC721SingleEditionDFS");
+  const singleEditionDFS = await singleEditionDFSFactory.deploy();
+  await singleEditionDFS.deployed();
 
   //Deploy General
   const generalFactory = await ethers.getContractFactory("ERC721General");
@@ -609,7 +782,9 @@ export async function setupSystem(
     generalImplementationAddress: general.address,
     generativeImplementationAddress: generative.address,
     editionsImplementationAddress: editions.address,
+    editionsDFSImplementationAddress: editionsDFS.address,
     singleEditionImplementationAddress: singleEdition.address,
+    singleEditionDFSImplementationAddress: singleEditionDFS.address,
   };
 }
 

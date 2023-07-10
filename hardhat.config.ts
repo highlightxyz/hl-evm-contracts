@@ -31,6 +31,8 @@ const chainIds = {
   optimism: 10,
   "optimism-goerli": 420,
   "base-goerli": 84531,
+  zora: 7777777,
+  "zora-goerli": 999,
 };
 
 function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
@@ -42,21 +44,27 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
 }
 
 function getUrl(chain: keyof typeof chainIds): string {
-  if (chain === "base-goerli") {
-    return "https://base-goerli.public.blastapi.io";
-  }
-
-  let key: string = chain;
   if (chain === "arbitrum") {
-    key = "arbitrum-mainnet";
+    return "https://arb-mainnet.g.alchemy.com/v2/6RXKTS3PtSM59L41inqVagpZW3-r_rq9";
+  } else if (chain === "arbitrum-goerli") {
+    return "https://arb-goerli.g.alchemy.com/v2/jK7-UD3iCOzaFUqa2L_SVI7fkdzCYfwc";
   } else if (chain === "optimism") {
-    key = "optimism-mainnet";
+    return "https://opt-mainnet.g.alchemy.com/v2/XtgT_4vf4xad9To3EOhQpH_7i62hYhKD";
+  } else if (chain === "optimism-goerli") {
+    return "https://opt-goerli.g.alchemy.com/v2/COI6ezi-VSOBEQIMKbX5sImZ_mYy6urr";
+  } else if (chain === "base-goerli") {
+    return "https://base-goerli.public.blastapi.io";
+  } else if (chain === "zora") {
+    return "https://rpc.zora.co";
+  } else if (chain === "zora-goerli") {
+    return "https://testnet.rpc.zora.co";
+  } else {
+    return "https://" + chain + ".infura.io/v3/" + infuraApiKey;
   }
-
-  return "https://" + key + ".infura.io/v3/" + infuraApiKey;
 }
 
 const config: HardhatUserConfig = {
+  defaultNetwork: "hardhat",
   etherscan: {
     apiKey: {
       mainnet: process.env.ETHERSCAN_API_KEY || "",
@@ -67,6 +75,9 @@ const config: HardhatUserConfig = {
       arbitrumOne: process.env.ARBITRUMSCAN_API_KEY || "",
       "optimism-goerli": process.env.OPTIMISMSCAN_API_KEY || "",
       "arbitrum-goerli": process.env.ARBITRUMSCAN_API_KEY || "",
+      "base-goerli": process.env.BASESCAN_API_KEY || "",
+      zora: process.env.ZORASCAN_API_KEY || "",
+      "zora-goerli": process.env.ZORASCAN_API_KEY || "",
     },
     customChains: [
       {
@@ -81,7 +92,7 @@ const config: HardhatUserConfig = {
         network: "optimism-goerli",
         chainId: 420,
         urls: {
-          apiURL: "https://api-goerli-optimistic.etherscan.io/",
+          apiURL: "https://api-goerli-optimistic.etherscan.io/api",
           browserURL: "https://goerli-optimism.etherscan.io/",
         },
       },
@@ -89,8 +100,24 @@ const config: HardhatUserConfig = {
         network: "arbitrum-goerli",
         chainId: 421613,
         urls: {
-          apiURL: "https://api-goerli.arbiscan.io/",
+          apiURL: "https://api-goerli.arbiscan.io/api",
           browserURL: "https://goerli.arbiscan.io/",
+        },
+      },
+      {
+        network: "zora",
+        chainId: 7777777,
+        urls: {
+          apiURL: "https://explorer.zora.energy/api",
+          browserURL: "https://explorer.zora.energy",
+        },
+      },
+      {
+        network: "zora-goerli",
+        chainId: 999,
+        urls: {
+          apiURL: "https://testnet.explorer.zora.energy/api",
+          browserURL: "https://testnet.explorer.zora.co",
         },
       },
     ],
@@ -103,9 +130,6 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
-      loggingEnabled: process.env.LOGGING_ENABLED === "true",
-    },
-    localhost: {
       chainId: chainIds.local,
       loggingEnabled: process.env.LOGGING_ENABLED === "true",
       mining: {
@@ -122,6 +146,8 @@ const config: HardhatUserConfig = {
     optimism: getChainConfig("optimism"),
     "optimism-goerli": getChainConfig("optimism-goerli"),
     "base-goerli": getChainConfig("base-goerli"),
+    zora: getChainConfig("zora"),
+    "zora-goerli": getChainConfig("zora-goerli"),
   },
   paths: {
     artifacts: "./artifacts",

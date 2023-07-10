@@ -29,6 +29,51 @@ abstract contract ERC721MinimizedBase is
     using ERC165CheckerUpgradeable for address;
 
     /**
+     * @notice Throw when token or royalty manager is invalid
+     */
+    error InvalidManager();
+
+    /**
+     * @notice Throw when token or royalty manager does not exist
+     */
+    error ManagerDoesNotExist();
+
+    /**
+     * @notice Throw when sender is unauthorized to perform action
+     */
+    error Unauthorized();
+
+    /**
+     * @notice Throw when sender is not a minter
+     */
+    error NotMinter();
+
+    /**
+     * @notice Throw when token manager or royalty manager swap is blocked
+     */
+    error ManagerSwapBlocked();
+
+    /**
+     * @notice Throw when token manager or royalty manager remove is blocked
+     */
+    error ManagerRemoveBlocked();
+
+    /**
+     * @notice Throw when setting default or granular royalty is blocked
+     */
+    error RoyaltySetBlocked();
+
+    /**
+     * @notice Throw when royalty BPS is invalid
+     */
+    error RoyaltyBPSInvalid();
+
+    /**
+     * @notice Throw when minter registration is invalid
+     */
+    error MinterRegistrationInvalid();
+
+    /**
      * @notice Set of minters allowed to mint on contract
      */
     EnumerableSet.AddressSet internal _minters;
@@ -93,7 +138,9 @@ abstract contract ERC721MinimizedBase is
      * @notice Restricts calls to minters
      */
     modifier onlyMinter() {
-        require(_minters.contains(_msgSender()), "Not minter");
+        if (!_minters.contains(_msgSender())) {
+            _revert(NotMinter.selector);
+        }
         _;
     }
 
@@ -101,7 +148,9 @@ abstract contract ERC721MinimizedBase is
      * @notice Restricts calls if input royalty bps is over 10000
      */
     modifier royaltyValid(uint16 _royaltyBPS) {
-        require(_royaltyBPS <= 10000, "Over BPS limit");
+        if (_royaltyBPS > 10000) {
+            _revert(RoyaltyBPSInvalid.selector);
+        }
         _;
     }
 
@@ -110,7 +159,9 @@ abstract contract ERC721MinimizedBase is
      * @param minter New minter
      */
     function registerMinter(address minter) external onlyOwner nonReentrant {
-        require(_minters.add(minter), "Already a minter");
+        if (!_minters.add(minter)) {
+            _revert(MinterRegistrationInvalid.selector);
+        }
 
         emit MinterRegistrationChanged(minter, true);
         observability.emitMinterRegistrationChanged(minter, true);
@@ -121,7 +172,9 @@ abstract contract ERC721MinimizedBase is
      * @param minter Minter to unregister
      */
     function unregisterMinter(address minter) external onlyOwner nonReentrant {
-        require(_minters.remove(minter), "Not yet minter");
+        if (!_minters.remove(minter)) {
+            _revert(MinterRegistrationInvalid.selector);
+        }
 
         emit MinterRegistrationChanged(minter, false);
         observability.emitMinterRegistrationChanged(minter, false);
@@ -132,14 +185,20 @@ abstract contract ERC721MinimizedBase is
      * @param _defaultTokenManager New default token manager
      */
     function setDefaultTokenManager(address _defaultTokenManager) external nonReentrant {
-        require(_isValidTokenManager(_defaultTokenManager), "Invalid TM");
+        if (!_isValidTokenManager(_defaultTokenManager)) {
+            _revert(InvalidManager.selector);
+        }
         address msgSender = _msgSender();
 
         address currentTokenManager = defaultManager;
         if (currentTokenManager == address(0)) {
-            require(msgSender == owner(), "Not owner");
+            if (msgSender != owner()) {
+                _revert(Unauthorized.selector);
+            }
         } else {
-            require(ITokenManager(currentTokenManager).canSwap(msgSender, 0, _defaultTokenManager), "Can't swap");
+            if (!ITokenManager(currentTokenManager).canSwap(msgSender, 0, _defaultTokenManager)) {
+                _revert(ManagerSwapBlocked.selector);
+            }
         }
 
         defaultManager = _defaultTokenManager;
@@ -155,8 +214,12 @@ abstract contract ERC721MinimizedBase is
         address msgSender = _msgSender();
 
         address currentTokenManager = defaultManager;
-        require(currentTokenManager != address(0), "Default TM not existent");
-        require(ITokenManager(currentTokenManager).canRemoveItself(msgSender, 0), "Can't remove");
+        if (currentTokenManager == address(0)) {
+            _revert(ManagerDoesNotExist.selector);
+        }
+        if (!ITokenManager(currentTokenManager).canRemoveItself(msgSender, 0)) {
+            _revert(ManagerRemoveBlocked.selector);
+        }
 
         defaultManager = address(0);
 
@@ -168,16 +231,22 @@ abstract contract ERC721MinimizedBase is
      * @notice Sets default royalty if royalty manager allows it
      * @param _royalty New default royalty
      */
-    function setDefaultRoyalty(
-        IRoyaltyManager.Royalty calldata _royalty
-    ) external nonReentrant royaltyValid(_royalty.royaltyPercentageBPS) {
+    function setDefaultRoyalty(IRoyaltyManager.Royalty calldata _royalty)
+        external
+        nonReentrant
+        royaltyValid(_royalty.royaltyPercentageBPS)
+    {
         address msgSender = _msgSender();
 
         address _royaltyManager = royaltyManager;
         if (_royaltyManager == address(0)) {
-            require(msgSender == owner(), "Not owner");
+            if (msgSender != owner()) {
+                _revert(Unauthorized.selector);
+            }
         } else {
-            require(IRoyaltyManager(_royaltyManager).canSetDefaultRoyalty(_royalty, msgSender), "Can't set");
+            if (!IRoyaltyManager(_royaltyManager).canSetDefaultRoyalty(_royalty, msgSender)) {
+                _revert(RoyaltySetBlocked.selector);
+            }
         }
 
         _defaultRoyalty = _royalty;
@@ -191,14 +260,20 @@ abstract contract ERC721MinimizedBase is
      * @param _royaltyManager New royalty manager
      */
     function setRoyaltyManager(address _royaltyManager) external nonReentrant {
-        require(_isValidRoyaltyManager(_royaltyManager), "Invalid RM");
+        if (!_isValidRoyaltyManager(_royaltyManager)) {
+            _revert(InvalidManager.selector);
+        }
         address msgSender = _msgSender();
 
         address currentRoyaltyManager = royaltyManager;
         if (currentRoyaltyManager == address(0)) {
-            require(msgSender == owner(), "Not owner");
+            if (msgSender != owner()) {
+                _revert(Unauthorized.selector);
+            }
         } else {
-            require(IRoyaltyManager(currentRoyaltyManager).canSwap(_royaltyManager, msgSender), "Can't swap");
+            if (!IRoyaltyManager(currentRoyaltyManager).canSwap(_royaltyManager, msgSender)) {
+                _revert(ManagerSwapBlocked.selector);
+            }
         }
 
         royaltyManager = _royaltyManager;
@@ -214,8 +289,12 @@ abstract contract ERC721MinimizedBase is
         address msgSender = _msgSender();
 
         address currentRoyaltyManager = royaltyManager;
-        require(currentRoyaltyManager != address(0), "RM non-existent");
-        require(IRoyaltyManager(currentRoyaltyManager).canRemoveItself(msgSender), "Can't remove");
+        if (currentRoyaltyManager == address(0)) {
+            _revert(ManagerDoesNotExist.selector);
+        }
+        if (!IRoyaltyManager(currentRoyaltyManager).canRemoveItself(msgSender)) {
+            _revert(ManagerRemoveBlocked.selector);
+        }
 
         royaltyManager = address(0);
 
@@ -246,7 +325,7 @@ abstract contract ERC721MinimizedBase is
      * @param _salePrice Sale price of token
      */
     function royaltyInfo(
-        uint256 /* _tokenGroupingId */,
+        uint256, /* _tokenGroupingId */
         uint256 _salePrice
     ) public view virtual override returns (address receiver, uint256 royaltyAmount) {
         IRoyaltyManager.Royalty memory royalty = _defaultRoyalty;
@@ -259,7 +338,9 @@ abstract contract ERC721MinimizedBase is
      * @notice Returns the token manager for the id passed in.
      * @param // Token ID or Edition ID for Editions implementing contracts
      */
-    function tokenManager(uint256 /* id */) public view returns (address manager) {
+    function tokenManager(
+        uint256 /* id */
+    ) public view returns (address manager) {
         return defaultManager;
     }
 
@@ -323,5 +404,15 @@ abstract contract ERC721MinimizedBase is
         returns (bytes calldata)
     {
         return ERC2771ContextUpgradeable._msgData();
+    }
+
+    /**
+     * @dev For more efficient reverts.
+     */
+    function _revert(bytes4 errorSelector) internal pure virtual {
+        assembly {
+            mstore(0x00, errorSelector)
+            revert(0x00, 0x04)
+        }
     }
 }

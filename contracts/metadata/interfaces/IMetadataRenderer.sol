@@ -3,7 +3,7 @@ pragma solidity 0.8.10;
 
 /**
  * @notice Used to interface with core of EditionsMetadataRenderer
- * @author Zora, highlight.xyz
+ * @author Zora, sarib@highlight.xyz
  */
 interface IMetadataRenderer {
     /**

@@ -28,6 +28,51 @@ abstract contract ERC721Base is
     using ERC165CheckerUpgradeable for address;
 
     /**
+     * @notice Throw when token or royalty manager is invalid
+     */
+    error InvalidManager();
+
+    /**
+     * @notice Throw when token or royalty manager does not exist
+     */
+    error ManagerDoesNotExist();
+
+    /**
+     * @notice Throw when sender is unauthorized to perform action
+     */
+    error Unauthorized();
+
+    /**
+     * @notice Throw when sender is not a minter
+     */
+    error NotMinter();
+
+    /**
+     * @notice Throw when token manager or royalty manager swap is blocked
+     */
+    error ManagerSwapBlocked();
+
+    /**
+     * @notice Throw when token manager or royalty manager remove is blocked
+     */
+    error ManagerRemoveBlocked();
+
+    /**
+     * @notice Throw when setting default or granular royalty is blocked
+     */
+    error RoyaltySetBlocked();
+
+    /**
+     * @notice Throw when royalty BPS is invalid
+     */
+    error RoyaltyBPSInvalid();
+
+    /**
+     * @notice Throw when minter registration is invalid
+     */
+    error MinterRegistrationInvalid();
+
+    /**
      * @notice Set of minters allowed to mint on contract
      */
     EnumerableSet.AddressSet internal _minters;
@@ -124,7 +169,9 @@ abstract contract ERC721Base is
      * @notice Restricts calls to minters
      */
     modifier onlyMinter() {
-        require(_minters.contains(_msgSender()), "Not minter");
+        if (!_minters.contains(_msgSender())) {
+            _revert(NotMinter.selector);
+        }
         _;
     }
 
@@ -132,7 +179,9 @@ abstract contract ERC721Base is
      * @notice Restricts calls if input royalty bps is over 10000
      */
     modifier royaltyValid(uint16 _royaltyBPS) {
-        require(_royaltyBPSValid(_royaltyBPS), "> BPS limit");
+        if (!_royaltyBPSValid(_royaltyBPS)) {
+            _revert(RoyaltyBPSInvalid.selector);
+        }
         _;
     }
 
@@ -141,7 +190,9 @@ abstract contract ERC721Base is
      * @param minter New minter
      */
     function registerMinter(address minter) external onlyOwner nonReentrant {
-        require(_minters.add(minter), "Already minter");
+        if (!_minters.add(minter)) {
+            _revert(MinterRegistrationInvalid.selector);
+        }
 
         emit MinterRegistrationChanged(minter, true);
         observability.emitMinterRegistrationChanged(minter, true);
@@ -152,7 +203,9 @@ abstract contract ERC721Base is
      * @param minter Minter to unregister
      */
     function unregisterMinter(address minter) external onlyOwner nonReentrant {
-        require(_minters.remove(minter), "Not yet minter");
+        if (!_minters.remove(minter)) {
+            _revert(MinterRegistrationInvalid.selector);
+        }
 
         emit MinterRegistrationChanged(minter, false);
         observability.emitMinterRegistrationChanged(minter, false);
@@ -163,21 +216,27 @@ abstract contract ERC721Base is
      * @param _ids Edition / token ids
      * @param _tokenManagers Token managers to set for tokens / editions
      */
-    function setGranularTokenManagers(
-        uint256[] calldata _ids,
-        address[] calldata _tokenManagers
-    ) external nonReentrant {
+    function setGranularTokenManagers(uint256[] calldata _ids, address[] calldata _tokenManagers)
+        external
+        nonReentrant
+    {
         address msgSender = _msgSender();
         address tempOwner = owner();
 
         uint256 idsLength = _ids.length;
         for (uint256 i = 0; i < idsLength; i++) {
-            require(_isValidTokenManager(_tokenManagers[i]), "Invalid TM");
+            if (!_isValidTokenManager(_tokenManagers[i])) {
+                _revert(InvalidManager.selector);
+            }
             address currentTokenManager = tokenManager(_ids[i]);
             if (currentTokenManager == address(0)) {
-                require(msgSender == tempOwner, "!owner");
+                if (msgSender != tempOwner) {
+                    _revert(Unauthorized.selector);
+                }
             } else {
-                require(ITokenManager(currentTokenManager).canSwap(msgSender, _ids[i], _managers[i]), "Can't swap");
+                if (!ITokenManager(currentTokenManager).canSwap(msgSender, _ids[i], _managers[i])) {
+                    _revert(ManagerSwapBlocked.selector);
+                }
             }
 
             _managers[_ids[i]] = _tokenManagers[i];
@@ -197,8 +256,12 @@ abstract contract ERC721Base is
         uint256 idsLength = _ids.length;
         for (uint256 i = 0; i < idsLength; i++) {
             address currentTokenManager = _managers[_ids[i]];
-            require(currentTokenManager != address(0), "TM !exists");
-            require(ITokenManager(currentTokenManager).canRemoveItself(msgSender, _ids[i]), "Can't remove");
+            if (currentTokenManager == address(0)) {
+                _revert(ManagerDoesNotExist.selector);
+            }
+            if (!ITokenManager(currentTokenManager).canRemoveItself(msgSender, _ids[i])) {
+                _revert(ManagerRemoveBlocked.selector);
+            }
 
             _managers[_ids[i]] = address(0);
         }
@@ -212,14 +275,20 @@ abstract contract ERC721Base is
      * @param _defaultTokenManager New default token manager
      */
     function setDefaultTokenManager(address _defaultTokenManager) external nonReentrant {
-        require(_isValidTokenManager(_defaultTokenManager), "Invalid TM");
+        if (!_isValidTokenManager(_defaultTokenManager)) {
+            _revert(InvalidManager.selector);
+        }
         address msgSender = _msgSender();
 
         address currentTokenManager = defaultManager;
         if (currentTokenManager == address(0)) {
-            require(msgSender == owner(), "!owner");
+            if (msgSender != owner()) {
+                _revert(Unauthorized.selector);
+            }
         } else {
-            require(ITokenManager(currentTokenManager).canSwap(msgSender, 0, _defaultTokenManager), "Can't swap");
+            if (!ITokenManager(currentTokenManager).canSwap(msgSender, 0, _defaultTokenManager)) {
+                _revert(ManagerSwapBlocked.selector);
+            }
         }
 
         defaultManager = _defaultTokenManager;
@@ -235,8 +304,12 @@ abstract contract ERC721Base is
         address msgSender = _msgSender();
 
         address currentTokenManager = defaultManager;
-        require(currentTokenManager != address(0), "TM !exists");
-        require(ITokenManager(currentTokenManager).canRemoveItself(msgSender, 0), "Can't remove");
+        if (currentTokenManager == address(0)) {
+            _revert(ManagerDoesNotExist.selector);
+        }
+        if (!ITokenManager(currentTokenManager).canRemoveItself(msgSender, 0)) {
+            _revert(ManagerRemoveBlocked.selector);
+        }
 
         defaultManager = address(0);
 
@@ -248,16 +321,22 @@ abstract contract ERC721Base is
      * @notice Sets default royalty if royalty manager allows it
      * @param _royalty New default royalty
      */
-    function setDefaultRoyalty(
-        IRoyaltyManager.Royalty calldata _royalty
-    ) external nonReentrant royaltyValid(_royalty.royaltyPercentageBPS) {
+    function setDefaultRoyalty(IRoyaltyManager.Royalty calldata _royalty)
+        external
+        nonReentrant
+        royaltyValid(_royalty.royaltyPercentageBPS)
+    {
         address msgSender = _msgSender();
 
         address _royaltyManager = royaltyManager;
         if (_royaltyManager == address(0)) {
-            require(msgSender == owner(), "!owner");
+            if (msgSender != owner()) {
+                _revert(Unauthorized.selector);
+            }
         } else {
-            require(IRoyaltyManager(_royaltyManager).canSetDefaultRoyalty(_royalty, msgSender), "Can't set");
+            if (!IRoyaltyManager(_royaltyManager).canSetDefaultRoyalty(_royalty, msgSender)) {
+                _revert(RoyaltySetBlocked.selector);
+            }
         }
 
         _defaultRoyalty = _royalty;
@@ -271,29 +350,34 @@ abstract contract ERC721Base is
      * @param ids Token / edition ids
      * @param _newRoyalties New royalties for each token / edition
      */
-    function setGranularRoyalties(
-        uint256[] calldata ids,
-        IRoyaltyManager.Royalty[] calldata _newRoyalties
-    ) external nonReentrant {
+    function setGranularRoyalties(uint256[] calldata ids, IRoyaltyManager.Royalty[] calldata _newRoyalties)
+        external
+        nonReentrant
+    {
         address msgSender = _msgSender();
         address tempOwner = owner();
 
         address _royaltyManager = royaltyManager;
         uint256 idsLength = ids.length;
         if (_royaltyManager == address(0)) {
-            require(msgSender == tempOwner, "!owner");
+            if (msgSender != tempOwner) {
+                _revert(Unauthorized.selector);
+            }
 
             for (uint256 i = 0; i < idsLength; i++) {
-                require(_royaltyBPSValid(_newRoyalties[i].royaltyPercentageBPS), "BPS invalid");
+                if (!_royaltyBPSValid(_newRoyalties[i].royaltyPercentageBPS)) {
+                    _revert(RoyaltyBPSInvalid.selector);
+                }
                 _royalties[ids[i]] = _newRoyalties[i];
             }
         } else {
             for (uint256 i = 0; i < idsLength; i++) {
-                require(_royaltyBPSValid(_newRoyalties[i].royaltyPercentageBPS), "BPS invalid");
-                require(
-                    IRoyaltyManager(_royaltyManager).canSetGranularRoyalty(ids[i], _newRoyalties[i], msgSender),
-                    "Can't set"
-                );
+                if (!_royaltyBPSValid(_newRoyalties[i].royaltyPercentageBPS)) {
+                    _revert(RoyaltyBPSInvalid.selector);
+                }
+                if (!IRoyaltyManager(_royaltyManager).canSetGranularRoyalty(ids[i], _newRoyalties[i], msgSender)) {
+                    _revert(RoyaltySetBlocked.selector);
+                }
                 _royalties[ids[i]] = _newRoyalties[i];
             }
         }
@@ -307,14 +391,20 @@ abstract contract ERC721Base is
      * @param _royaltyManager New royalty manager
      */
     function setRoyaltyManager(address _royaltyManager) external nonReentrant {
-        require(_isValidRoyaltyManager(_royaltyManager), "Invalid RM");
+        if (!_isValidRoyaltyManager(_royaltyManager)) {
+            _revert(InvalidManager.selector);
+        }
         address msgSender = _msgSender();
 
         address currentRoyaltyManager = royaltyManager;
         if (currentRoyaltyManager == address(0)) {
-            require(msgSender == owner(), "!owner");
+            if (msgSender != owner()) {
+                _revert(Unauthorized.selector);
+            }
         } else {
-            require(IRoyaltyManager(currentRoyaltyManager).canSwap(_royaltyManager, msgSender), "Can't swap");
+            if (!IRoyaltyManager(currentRoyaltyManager).canSwap(_royaltyManager, msgSender)) {
+                _revert(ManagerSwapBlocked.selector);
+            }
         }
 
         royaltyManager = _royaltyManager;
@@ -330,8 +420,12 @@ abstract contract ERC721Base is
         address msgSender = _msgSender();
 
         address currentRoyaltyManager = royaltyManager;
-        require(currentRoyaltyManager != address(0), "RM !exists");
-        require(IRoyaltyManager(currentRoyaltyManager).canRemoveItself(msgSender), "Can't remove");
+        if (currentRoyaltyManager == address(0)) {
+            _revert(ManagerDoesNotExist.selector);
+        }
+        if (!IRoyaltyManager(currentRoyaltyManager).canRemoveItself(msgSender)) {
+            _revert(ManagerRemoveBlocked.selector);
+        }
 
         royaltyManager = address(0);
 
@@ -361,10 +455,13 @@ abstract contract ERC721Base is
      * @param _tokenGroupingId Token id if on general, and edition id if on editions
      * @param _salePrice Sale price of token
      */
-    function royaltyInfo(
-        uint256 _tokenGroupingId,
-        uint256 _salePrice
-    ) public view virtual override returns (address receiver, uint256 royaltyAmount) {
+    function royaltyInfo(uint256 _tokenGroupingId, uint256 _salePrice)
+        public
+        view
+        virtual
+        override
+        returns (address receiver, uint256 royaltyAmount)
+    {
         IRoyaltyManager.Royalty memory royalty = _royalties[_tokenGroupingId];
         if (royalty.recipientAddress == address(0)) {
             royalty = _defaultRoyalty;
@@ -436,6 +533,16 @@ abstract contract ERC721Base is
         returns (address sender)
     {
         return ERC2771ContextUpgradeable._msgSender();
+    }
+
+    /**
+     * @dev For more efficient reverts.
+     */
+    function _revert(bytes4 errorSelector) internal pure virtual {
+        assembly {
+            mstore(0x00, errorSelector)
+            revert(0x00, 0x04)
+        }
     }
 
     /**

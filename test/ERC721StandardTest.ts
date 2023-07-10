@@ -16,6 +16,7 @@ import {
   TotalLockedTokenManager,
   TransferAndBurnLockedTokenManager,
 } from "../types";
+import { Errors } from "./__utils__/data";
 import { setupEditions, setupGeneral, setupSingleEdition, setupSystem } from "./__utils__/helpers";
 
 const defaultEditionInfo = ethers.utils.defaultAbiCoder.encode(
@@ -474,7 +475,7 @@ describe("ERC721 Standard with token managers functionality", () => {
 
         general = general.connect(editionsMetadataOwner);
 
-        await expect(general.burn(2)).to.be.revertedWith("Not owner or operator");
+        await expect(general.burn(2)).to.be.revertedWithCustomError(general, Errors.Unauthorized);
       });
     });
   });

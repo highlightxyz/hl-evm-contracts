@@ -343,15 +343,25 @@ interface IAuctionManager {
      * @notice Get all data about an auction except for number of bids made per user
      * @param auctionId ID of auction
      */
-    function getFullAuctionData(
-        bytes32 auctionId
-    ) external view returns (EnglishAuction memory, HighestBidderData memory, EditionAuction memory);
+    function getFullAuctionData(bytes32 auctionId)
+        external
+        view
+        returns (
+            EnglishAuction memory,
+            HighestBidderData memory,
+            EditionAuction memory
+        );
 
     /**
      * @notice Get all data about a set of auctions except for number of bids made per user
      * @param auctionIds IDs of auctions
      */
-    function getFullAuctionsData(
-        bytes32[] calldata auctionIds
-    ) external view returns (EnglishAuction[] memory, HighestBidderData[] memory, EditionAuction[] memory);
+    function getFullAuctionsData(bytes32[] calldata auctionIds)
+        external
+        view
+        returns (
+            EnglishAuction[] memory,
+            HighestBidderData[] memory,
+            EditionAuction[] memory
+        );
 }

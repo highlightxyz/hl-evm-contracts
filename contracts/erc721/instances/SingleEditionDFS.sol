@@ -6,10 +6,11 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 /**
- * @notice Instance of SingleEdition contract (single edition, unlimited size)
+ * @notice Instance of SingleEditionDFS contract (single edition, unlimited size)
+ * @dev Uses Decentralized File Storage
  * @author highlight.xyz
  */
-contract SingleEdition is Proxy {
+contract SingleEditionDFS is Proxy {
     /**
      * @notice Set up a SingleEdition instance
      * @param implementation_ ERC721SingleEdition implementation
@@ -21,11 +22,10 @@ contract SingleEdition is Proxy {
      * @ param _name Name of token edition
      * @ param _symbol Symbol of the token edition
      * @ param _size Edition size
-     * @ param metadataRendererAddress Contract returning metadata for each edition
      * @ param trustedForwarder Trusted minimal forwarder
      * @ param initialMinter Initial minter to register
      * @ param useMarketplaceFiltererRegistry Denotes whether to use marketplace filterer registry
-     * @ param _editionInfo Edition info
+     * @ param _editionUri Edition uri (metadata)
      * @param _observability Observability contract address
      */
     constructor(
@@ -45,7 +45,7 @@ contract SingleEdition is Proxy {
      * @notice Return the contract type
      */
     function contractType() external view returns (string memory) {
-        return "SingleEdition";
+        return "SingleEditionDFS";
     }
 
     /**

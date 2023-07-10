@@ -13,8 +13,8 @@ contract TotalLockedTokenManager is ITokenManager, InterfaceSupportTokenManager 
      * @notice See {ITokenManager-canUpdateMetadata}
      */
     function canUpdateMetadata(
-        address /* sender */,
-        uint256 /* id */,
+        address, /* sender */
+        uint256, /* id */
         bytes calldata /* newTokenUri */
     ) external pure override returns (bool) {
         return false;
@@ -24,8 +24,8 @@ contract TotalLockedTokenManager is ITokenManager, InterfaceSupportTokenManager 
      * @notice See {ITokenManager-canSwap}
      */
     function canSwap(
-        address /* sender */,
-        uint256 /* id */,
+        address, /* sender */
+        uint256, /* id */
         address /* newTokenManager */
     ) external pure override returns (bool) {
         return false;
@@ -34,7 +34,10 @@ contract TotalLockedTokenManager is ITokenManager, InterfaceSupportTokenManager 
     /**
      * @notice See {ITokenManager-canRemoveItself}
      */
-    function canRemoveItself(address /* sender */, uint256 /* id */) external pure override returns (bool) {
+    function canRemoveItself(
+        address, /* sender */
+        uint256 /* id */
+    ) external pure override returns (bool) {
         return false;
     }
 }

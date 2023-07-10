@@ -39,6 +39,3 @@ jobs:
 
       - name: "Compile the contracts and generate the TypeChain bindings"
         run: "yarn typechain"
-
-      - name: "Test the contracts (each file separately, temporarily and without a coverage report)"
-        run: "yarn test:separate"

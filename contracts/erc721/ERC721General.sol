@@ -6,7 +6,6 @@ import "../metadata/MetadataEncryption.sol";
 import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
 import "./interfaces/IERC721GeneralMint.sol";
-import "../utils/ERC721/ERC721URIStorageUpgradeable.sol";
 import "./MarketplaceFilterer/MarketplaceFilterer.sol";
 import "./ERC721GeneralBase.sol";
 
@@ -46,7 +45,7 @@ contract ERC721General is MetadataEncryption, ERC721GeneralBase {
         uint256 _limitSupply,
         bool useMarketplaceFiltererRegistry,
         address _observability
-    ) external initializer nonReentrant {
+    ) external initializer {
         _initialize(
             creator,
             _contractURI,
@@ -79,7 +78,7 @@ contract ERC721General is MetadataEncryption, ERC721GeneralBase {
      * @ param useMarketplaceFiltererRegistry Denotes whether to use marketplace filterer registry
      * @ param _observability Observability contract address
      */
-    function initialize(bytes calldata data) external initializer nonReentrant {
+    function initialize(bytes calldata data) external initializer {
         (
             address creator,
             string memory _contractURI,
@@ -159,7 +158,7 @@ contract ERC721General is MetadataEncryption, ERC721GeneralBase {
         __ERC721URIStorage_init();
         __ERC721Base_initialize(creator, defaultRoyalty, _defaultTokenManager);
         __ERC2771ContextUpgradeable__init__(trustedForwarder);
-        __ERC721_init(_name, _symbol);
+        __ERC721A_init(_name, _symbol);
         __MarketplaceFilterer__init__(useMarketplaceFiltererRegistry);
         _minters.add(initialMinter);
         contractURI = _contractURI;

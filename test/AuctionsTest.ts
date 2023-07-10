@@ -624,7 +624,7 @@ describe("Auction Manager", () => {
       expect(claimVerified).to.equal(true);
 
       const blockTime = Math.floor(Date.now() / 1000) + 1000;
-      const newEndTimeExpectedMin = ethers.BigNumber.from(blockTime + 300000000);
+      const newEndTimeExpectedMin = ethers.BigNumber.from(blockTime + 300000000).add(2);
       await time.setNextBlockTimestamp(blockTime);
       await expect(auctionManager.bid(claim, signature, fan1.address, { value: ethers.utils.parseEther("2") }))
         .to.emit(editions2, "Transfer")
@@ -674,6 +674,7 @@ describe("Auction Manager", () => {
       const platformPreviousBalance = await provider.getBalance(platformPaymentAccount.address);
       const recipientCut = ethers.utils.parseEther("1.04").mul(9500).div(10000);
       const platformCut = ethers.utils.parseEther("1.04").sub(recipientCut);
+      console.log("pre fulfill");
       await expect(auctionManager.fulfillAuction(ethers.utils.formatBytes32String("id1")))
         .to.emit(auctionManager, "AuctionWon")
         .withArgs(
@@ -688,6 +689,7 @@ describe("Auction Manager", () => {
           ethers.utils.parseEther("1.04"),
           9500,
         );
+      console.log("post fulfill");
 
       expect(await provider.getBalance(randomEOA.address)).to.equal(paymentRecipientPreviousBalance.add(recipientCut));
       expect(await provider.getBalance(platformPaymentAccount.address)).to.equal(

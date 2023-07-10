@@ -48,10 +48,9 @@ contract Observability is IObservability {
     /**
      * @notice See {IObservability-emitGranularRoyaltiesSet}
      */
-    function emitGranularRoyaltiesSet(
-        uint256[] calldata ids,
-        IRoyaltyManager.Royalty[] calldata _newRoyalties
-    ) external {
+    function emitGranularRoyaltiesSet(uint256[] calldata ids, IRoyaltyManager.Royalty[] calldata _newRoyalties)
+        external
+    {
         emit GranularRoyaltiesSet(msg.sender, ids, _newRoyalties);
     }
 
@@ -100,6 +99,8 @@ contract Observability is IObservability {
 
     /**
      * @notice See {IObservability-emitTokenURIsSet}
+     * @dev If sent by an EditionsDFS based contract,
+     *      ids and uris will be of length 1 and contain edition id / new edition uri
      */
     function emitTokenURIsSet(uint256[] calldata ids, string[] calldata uris) external {
         emit TokenURIsSet(msg.sender, ids, uris);
@@ -150,7 +151,11 @@ contract Observability is IObservability {
     /**
      * @notice See {IObservability-emitTransfer}
      */
-    function emitTransfer(address from, address to, uint256 tokenId) external {
+    function emitTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) external {
         emit Transfer(msg.sender, from, to, tokenId);
     }
 }

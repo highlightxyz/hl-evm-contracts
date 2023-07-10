@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
- * WETH on Polygon slightly modified by highlight.xyz for testing purposes and to compile w/ solidity 0.8.10
+ * WETH on Polygon slightly modified by ishan at highlight.xyz for testing purposes and to compile w/ solidity 0.8.10
  */
 
 /* solhint-disable */
@@ -181,7 +181,11 @@ abstract contract ContextMixin {
 contract ChildERC20 is ERC20, IChildToken, AccessControlMixin, NativeMetaTransaction, ChainConstants, ContextMixin {
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
 
-    constructor(string memory name_, string memory symbol_, address childChainManager) public ERC20(name_, symbol_) {
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        address childChainManager
+    ) public ERC20(name_, symbol_) {
         _setupContractId("ChildERC20");
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _setupRole(DEPOSITOR_ROLE, childChainManager);

@@ -10,6 +10,7 @@ import {
   OwnerOnlyTokenManager,
   TotalLockedTokenManager,
 } from "../types";
+import { Errors } from "./__utils__/data";
 import { setupGeneral, setupSystem } from "./__utils__/helpers";
 
 describe("ERC721General functionality", () => {
@@ -82,12 +83,12 @@ describe("ERC721General functionality", () => {
 
     describe("setBaseUri", function () {
       it("Cannot set to empty string", async function () {
-        await expect(general.setBaseURI("")).to.be.revertedWith("Empty string");
+        await expect(general.setBaseURI("")).to.be.revertedWithCustomError(general, Errors.EmptyString);
       });
 
       it("If default manager is non-existent, invocation from non-owner fails", async function () {
         general = general.connect(fan1);
-        await expect(general.setBaseURI("testing")).to.be.revertedWith("Not owner");
+        await expect(general.setBaseURI("testing")).to.be.revertedWithCustomError(general, Errors.Unauthorized);
       });
 
       it("If default manager is non-existent, invocation from owner succeeds", async function () {
@@ -109,7 +110,7 @@ describe("ERC721General functionality", () => {
         );
 
         general = general.connect(fan1);
-        await expect(general.setBaseURI("testing")).to.be.revertedWith("Can't update base uri");
+        await expect(general.setBaseURI("testing")).to.be.revertedWithCustomError(general, Errors.Unauthorized);
 
         general = general.connect(owner);
         await expect(general.setBaseURI("testing")).to.emit(general, "BaseURISet").withArgs("baseUri", "testing");
@@ -122,12 +123,18 @@ describe("ERC721General functionality", () => {
 
     describe("setTokenUris", function () {
       it("ids and uris length cannot mismatch", async function () {
-        await expect(general.setTokenURIs([1, 2], ["test"])).to.be.revertedWith("Mismatched array lengths");
+        await expect(general.setTokenURIs([1, 2], ["test"])).to.be.revertedWithCustomError(
+          general,
+          Errors.MismatchedArrayLengths,
+        );
       });
 
       it("If token manager is non-existent, invocation from non-owner fails", async function () {
         general = general.connect(fan1);
-        await expect(general.setTokenURIs([1, 2], ["testing1", "testing2"])).to.be.revertedWith("Not owner");
+        await expect(general.setTokenURIs([1, 2], ["testing1", "testing2"])).to.be.revertedWithCustomError(
+          general,
+          Errors.Unauthorized,
+        );
       });
 
       it("If tokens manager is non-existent, invocation owner succeeds", async function () {
@@ -150,7 +157,10 @@ describe("ERC721General functionality", () => {
         );
 
         general = general.connect(fan1);
-        await expect(general.setTokenURIs([1, 2], ["testing1", "testing2"])).to.be.revertedWith("Can't update");
+        await expect(general.setTokenURIs([1, 2], ["testing1", "testing2"])).to.be.revertedWithCustomError(
+          general,
+          Errors.Unauthorized,
+        );
 
         general = general.connect(owner);
 
@@ -173,13 +183,19 @@ describe("ERC721General functionality", () => {
           .to.emit(general, "GranularTokenManagersSet")
           .to.emit(observability, "GranularTokenManagersSet");
 
-        await expect(general.setTokenURIs([1, 2, 3], ["testing1", "testing2", "testing3"])).to.be.revertedWith(
-          "Can't update",
+        await expect(
+          general.setTokenURIs([1, 2, 3], ["testing1", "testing2", "testing3"]),
+        ).to.be.revertedWithCustomError(general, Errors.Unauthorized);
+
+        await expect(general.setTokenURIs([2, 3], ["testing2", "testing3"])).to.be.revertedWithCustomError(
+          general,
+          Errors.Unauthorized,
         );
 
-        await expect(general.setTokenURIs([2, 3], ["testing2", "testing3"])).to.be.revertedWith("Can't update");
-
-        await expect(general.setTokenURIs([1, 3], ["testing1", "testing3"])).to.be.revertedWith("Can't update");
+        await expect(general.setTokenURIs([1, 3], ["testing1", "testing3"])).to.be.revertedWithCustomError(
+          general,
+          Errors.Unauthorized,
+        );
 
         await expect(general.setTokenURIs([3], ["testing3"]))
           .to.emit(general, "TokenURIsSet")
@@ -206,13 +222,19 @@ describe("ERC721General functionality", () => {
       it("Non minter cannot call", async function () {
         general = general.connect(fan1);
 
-        await expect(general.mintOneToOneRecipient(fan1.address)).to.be.revertedWith("Not minter");
+        await expect(general.mintOneToOneRecipient(fan1.address)).to.be.revertedWithCustomError(
+          general,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(general.freezeMints()).to.emit(general, "MintsFrozen");
 
-        await expect(general.mintOneToOneRecipient(fan1.address)).to.be.revertedWith("Mint frozen");
+        await expect(general.mintOneToOneRecipient(fan1.address)).to.be.revertedWithCustomError(
+          general,
+          Errors.MintFrozen,
+        );
       });
 
       it("Can mint validly up until limit supply", async function () {
@@ -225,7 +247,10 @@ describe("ERC721General functionality", () => {
           expect(await general.ownerOf(i)).to.equal(fan1.address);
         }
 
-        await expect(general.mintOneToOneRecipient(fan1.address)).to.be.revertedWith("Over limit supply");
+        await expect(general.mintOneToOneRecipient(fan1.address)).to.be.revertedWithCustomError(
+          general,
+          Errors.OverLimitSupply,
+        );
 
         await expect(general.setLimitSupply(0)).to.emit(general, "LimitSupplySet").withArgs(0);
 
@@ -244,17 +269,26 @@ describe("ERC721General functionality", () => {
       it("Non minter cannot call", async function () {
         general = general.connect(fan1);
 
-        await expect(general.mintAmountToOneRecipient(fan1.address, 2)).to.be.revertedWith("Not minter");
+        await expect(general.mintAmountToOneRecipient(fan1.address, 2)).to.be.revertedWithCustomError(
+          general,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(general.freezeMints()).to.emit(general, "MintsFrozen");
 
-        await expect(general.mintAmountToOneRecipient(fan1.address, 2)).to.be.revertedWith("Mint frozen");
+        await expect(general.mintAmountToOneRecipient(fan1.address, 2)).to.be.revertedWithCustomError(
+          general,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint more than limitSupply, in multiple variations", async function () {
-        await expect(general.mintAmountToOneRecipient(fan1.address, 6)).to.be.revertedWith("Over limit supply");
+        await expect(general.mintAmountToOneRecipient(fan1.address, 6)).to.be.revertedWithCustomError(
+          general,
+          Errors.OverLimitSupply,
+        );
 
         await expect(general.mintAmountToOneRecipient(fan1.address, 3))
           .to.emit(general, "Transfer")
@@ -264,7 +298,10 @@ describe("ERC721General functionality", () => {
           .to.emit(general, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 3);
 
-        await expect(general.mintAmountToOneRecipient(fan1.address, 3)).to.be.revertedWith("Over limit supply");
+        await expect(general.mintAmountToOneRecipient(fan1.address, 3)).to.be.revertedWithCustomError(
+          general,
+          Errors.OverLimitSupply,
+        );
 
         await expect(general.setLimitSupply(0))
           .to.emit(general, "LimitSupplySet")
@@ -318,18 +355,27 @@ describe("ERC721General functionality", () => {
       it("Non minter cannot call", async function () {
         general = general.connect(fan1);
 
-        await expect(general.mintOneToMultipleRecipients([fan1.address])).to.be.revertedWith("Not minter");
+        await expect(general.mintOneToMultipleRecipients([fan1.address])).to.be.revertedWithCustomError(
+          general,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(general.freezeMints()).to.emit(general, "MintsFrozen");
 
-        await expect(general.mintOneToMultipleRecipients([fan1.address])).to.be.revertedWith("Mint frozen");
+        await expect(general.mintOneToMultipleRecipients([fan1.address])).to.be.revertedWithCustomError(
+          general,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint more than limitSupply, in multiple variations", async function () {
         const recipientAddresses = [fan1.address, fan1.address, fan1.address, fan1.address, fan1.address, fan1.address];
-        await expect(general.mintOneToMultipleRecipients(recipientAddresses)).to.be.revertedWith("Over limit supply");
+        await expect(general.mintOneToMultipleRecipients(recipientAddresses)).to.be.revertedWithCustomError(
+          general,
+          Errors.OverLimitSupply,
+        );
 
         await expect(general.mintOneToMultipleRecipients(recipientAddresses.slice(3)))
           .to.emit(general, "Transfer")
@@ -339,8 +385,9 @@ describe("ERC721General functionality", () => {
           .to.emit(general, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 3);
 
-        await expect(general.mintOneToMultipleRecipients(recipientAddresses.slice(3))).to.be.revertedWith(
-          "Over limit supply",
+        await expect(general.mintOneToMultipleRecipients(recipientAddresses.slice(3))).to.be.revertedWithCustomError(
+          general,
+          Errors.OverLimitSupply,
         );
 
         await expect(general.setLimitSupply(0)).to.emit(general, "LimitSupplySet").withArgs(0);
@@ -395,19 +442,26 @@ describe("ERC721General functionality", () => {
       it("Non minter cannot call", async function () {
         general = general.connect(fan1);
 
-        await expect(general.mintSameAmountToMultipleRecipients([fan1.address], 2)).to.be.revertedWith("Not minter");
+        await expect(general.mintSameAmountToMultipleRecipients([fan1.address], 2)).to.be.revertedWithCustomError(
+          general,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(general.freezeMints()).to.emit(general, "MintsFrozen");
 
-        await expect(general.mintSameAmountToMultipleRecipients([fan1.address], 2)).to.be.revertedWith("Mint frozen");
+        await expect(general.mintSameAmountToMultipleRecipients([fan1.address], 2)).to.be.revertedWithCustomError(
+          general,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint more than limitSupply, in multiple variations", async function () {
         const recipientAddresses = [fan1.address, fan1.address, fan1.address];
-        await expect(general.mintSameAmountToMultipleRecipients(recipientAddresses, 2)).to.be.revertedWith(
-          "Over limit supply",
+        await expect(general.mintSameAmountToMultipleRecipients(recipientAddresses, 2)).to.be.revertedWithCustomError(
+          general,
+          Errors.OverLimitSupply,
         );
 
         await expect(general.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 2))
@@ -420,9 +474,9 @@ describe("ERC721General functionality", () => {
           .to.emit(general, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 4);
 
-        await expect(general.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 1)).to.be.revertedWith(
-          "Over limit supply",
-        );
+        await expect(
+          general.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 1),
+        ).to.be.revertedWithCustomError(general, Errors.OverLimitSupply);
 
         await expect(general.setLimitSupply(0)).to.emit(general, "LimitSupplySet").withArgs(0);
 
@@ -439,8 +493,9 @@ describe("ERC721General functionality", () => {
 
       it("Minter can mint validly (simple variation)", async function () {
         const recipientAddresses = [fan1.address, fan1.address, fan1.address];
-        await expect(general.mintSameAmountToMultipleRecipients(recipientAddresses, 2)).to.be.revertedWith(
-          "Over limit supply",
+        await expect(general.mintSameAmountToMultipleRecipients(recipientAddresses, 2)).to.be.revertedWithCustomError(
+          general,
+          Errors.OverLimitSupply,
         );
 
         await expect(general.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 2))
@@ -453,9 +508,9 @@ describe("ERC721General functionality", () => {
           .to.emit(general, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 4);
 
-        await expect(general.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 2)).to.be.revertedWith(
-          "Over limit supply",
-        );
+        await expect(
+          general.mintSameAmountToMultipleRecipients(recipientAddresses.slice(1), 2),
+        ).to.be.revertedWithCustomError(general, Errors.OverLimitSupply);
       });
 
       it("Minter can mint validly (complex variation)", async function () {
@@ -489,22 +544,34 @@ describe("ERC721General functionality", () => {
       it("Non minter cannot call", async function () {
         general = general.connect(fan1);
 
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 1)).to.be.revertedWith("Not minter");
+        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 1)).to.be.revertedWithCustomError(
+          general,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(general.freezeMints()).to.emit(general, "MintsFrozen");
 
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 2)).to.be.revertedWith("Mint frozen");
+        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 2)).to.be.revertedWithCustomError(
+          general,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint token not in range, but can mint in-range ones", async function () {
         await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 1)).to.emit(general, "Transfer");
         await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 2)).to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 5)).to.be.revertedWith("Token not in range");
+        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 5)).to.be.revertedWithCustomError(
+          general,
+          Errors.TokenNotInRange,
+        );
         await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 3)).to.emit(general, "Transfer");
         await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 4)).to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 5)).to.be.revertedWith("Token not in range");
+        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 5)).to.be.revertedWithCustomError(
+          general,
+          Errors.TokenNotInRange,
+        );
 
         await expect(general.setLimitSupply(0)).to.emit(general, "LimitSupplySet").withArgs(0);
 
@@ -513,8 +580,9 @@ describe("ERC721General functionality", () => {
 
       it("Cannot mint already minted token", async function () {
         await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 4)).to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 4)).to.be.revertedWith(
-          "ERC721: token minted",
+        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 4)).to.be.revertedWithCustomError(
+          general,
+          Errors.TokenMintedAlready,
         );
       });
     });
@@ -523,21 +591,28 @@ describe("ERC721General functionality", () => {
       it("Non minter cannot call", async function () {
         general = general.connect(fan1);
 
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [1, 2])).to.be.revertedWith("Not minter");
+        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [1, 2])).to.be.revertedWithCustomError(
+          general,
+          Errors.NotMinter,
+        );
       });
 
       it("Cannot mint if mint frozen", async function () {
         await expect(general.freezeMints()).to.emit(general, "MintsFrozen");
 
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [2])).to.be.revertedWith("Mint frozen");
+        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [2])).to.be.revertedWithCustomError(
+          general,
+          Errors.MintFrozen,
+        );
       });
 
       it("Cannot mint token not in range, but can mint in-range ones", async function () {
         await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [1, 4]))
           .to.emit(general, "Transfer")
           .to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [2, 5])).to.be.revertedWith(
-          "Token not in range",
+        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [2, 5])).to.be.revertedWithCustomError(
+          general,
+          Errors.TokenNotInRange,
         );
         await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [2, 3]))
           .to.emit(general, "Transfer")
@@ -553,8 +628,9 @@ describe("ERC721General functionality", () => {
 
       it("Cannot mint already minted token", async function () {
         await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [4, 1])).to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [2, 1, 3])).to.be.revertedWith(
-          "ERC721: token minted",
+        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [2, 1, 3])).to.be.revertedWithCustomError(
+          general,
+          Errors.TokenMintedAlready,
         );
       });
     });
