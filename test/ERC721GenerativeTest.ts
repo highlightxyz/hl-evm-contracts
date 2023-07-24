@@ -1,7 +1,3 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import {
   ERC721General,
   MinimalForwarder,
@@ -10,8 +6,12 @@ import {
   OwnerOnlyTokenManager,
   TotalLockedTokenManager,
 } from "../types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import { Errors } from "./__utils__/data";
-import { setupGenerative, setupSystem } from "./__utils__/helpers";
+import { DEFAULT_ONCHAIN_MINT_VECTOR, setupGenerative, setupSystem } from "./__utils__/helpers";
 
 describe("ERC721Generative functionality", () => {
   let totalLockedTokenManager: TotalLockedTokenManager;
@@ -628,5 +628,46 @@ describe("ERC721Generative functionality", () => {
         ).to.be.revertedWithCustomError(generative, Errors.TokenMintedAlready);
       });
     });
+  });
+
+  it("Can deploy with direct mint", async function () {
+    generative = await setupGenerative(
+      observability.address,
+      generativeImplementation,
+      trustedForwarder.address,
+      mintManager.address,
+      owner,
+      { ...DEFAULT_ONCHAIN_MINT_VECTOR, maxUserClaimableViaVector: 2 },
+    );
+
+    expect((await mintManager.getAbridgedVector(1)).slice(0, 14)).to.deep.equal([
+      generative.address,
+      DEFAULT_ONCHAIN_MINT_VECTOR.startTimestamp,
+      DEFAULT_ONCHAIN_MINT_VECTOR.endTimestamp,
+      owner.address,
+      DEFAULT_ONCHAIN_MINT_VECTOR.maxTotalClaimableViaVector,
+      0,
+      ethers.constants.AddressZero,
+      DEFAULT_ONCHAIN_MINT_VECTOR.tokenLimitPerTx,
+      2,
+      DEFAULT_ONCHAIN_MINT_VECTOR.pricePerToken,
+      0,
+      false,
+      false,
+      DEFAULT_ONCHAIN_MINT_VECTOR.allowlistRoot,
+    ]);
+
+    await expect(
+      mintManager.vectorMintSeries721(1, 2, owner.address, { value: ethers.utils.parseEther("0.0008").mul(2) }),
+    )
+      .to.emit(mintManager, "NumTokenMint")
+      .withArgs(ethers.utils.hexZeroPad(ethers.utils.hexlify(1), 32), generative.address, true, 2);
+
+    await expect(mintManager.vectorMintSeries721(1, 1, owner.address)).to.be.revertedWithCustomError(
+      mintManager,
+      "OnchainVectorMintGuardFailed",
+    );
+
+    expect(await mintManager.userClaims(1, owner.address)).to.equal(2);
   });
 });

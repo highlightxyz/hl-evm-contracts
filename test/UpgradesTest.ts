@@ -1,7 +1,3 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import {
   AuctionManager,
   ERC721Editions,
@@ -12,7 +8,11 @@ import {
   TestEditionsMetadataRenderer,
   TestMintManager,
 } from "../types";
-import { SAMPLE_VECTOR_1, SAMPLE_VECTOR_MUTABILITY_1 } from "./__utils__/data";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
+import { SAMPLE_ABRIDGED_VECTOR } from "./__utils__/data";
 import { setupEditions, setupSystem } from "./__utils__/helpers";
 
 const defaultEditionInfo = ethers.utils.defaultAbiCoder.encode(
@@ -112,12 +112,11 @@ describe("Upgrades functionality", () => {
       mintManager = mintManager.connect(mintManagerOwner);
 
       await expect(
-        mintManager.createVector(SAMPLE_VECTOR_1(editions.address, owner.address), SAMPLE_VECTOR_MUTABILITY_1(), 0),
-      ).to.emit(mintManager, "VectorCreated");
+        mintManager.createAbridgedVector(SAMPLE_ABRIDGED_VECTOR(editions.address, owner.address, true)),
+      ).to.emit(mintManager, "EditionVectorCreated");
 
       // data before upgrade
       const vectorOnOldImpl = await mintManager.vectors(1);
-      const vectorMutabilityOnOldImpl = await mintManager.vectorMutabilities(1);
       const ownerOnOldImpl = await mintManager.owner();
 
       testMintManager = await (await ethers.getContractFactory("TestMintManager")).deploy();
@@ -132,7 +131,6 @@ describe("Upgrades functionality", () => {
 
       // data after upgrade
       expect(await newMintManager.vectors(1)).to.eql(vectorOnOldImpl);
-      expect(await newMintManager.vectorMutabilities(1)).to.eql(vectorMutabilityOnOldImpl);
       expect(await newMintManager.owner()).to.equal(ownerOnOldImpl);
     });
   });
@@ -151,7 +149,7 @@ describe("Upgrades functionality", () => {
         emr.address,
         mintManagerOwner,
       );
-      await expect(editions.createEdition(defaultEditionInfo, 4, ethers.constants.AddressZero, zeroRoyalty));
+      await expect(editions.createEdition(defaultEditionInfo, 4, ethers.constants.AddressZero, zeroRoyalty, "0x"));
     });
 
     it("Non owner cannot upgrade EditionsMetadataRenderer", async function () {

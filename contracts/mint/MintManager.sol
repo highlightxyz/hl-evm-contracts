@@ -8,6 +8,7 @@ import "../utils/ERC721/IERC721.sol";
 import "./interfaces/INativeMetaTransaction.sol";
 import "../utils/EIP712Upgradeable.sol";
 import "../metatx/ERC2771ContextUpgradeable.sol";
+import "./interfaces/IAbridgedMintVector.sol";
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
@@ -21,7 +22,13 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
  * @author highlight.xyz
  * @notice Faciliates lion's share of minting in Highlight protocol V2 by managing mint "vectors" on-chain and off-chain
  */
-contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, ERC2771ContextUpgradeable {
+contract MintManager is
+    EIP712Upgradeable,
+    UUPSUpgradeable,
+    OwnableUpgradeable,
+    ERC2771ContextUpgradeable,
+    IAbridgedMintVector
+{
     using ECDSA for bytes32;
     using EnumerableSet for EnumerableSet.Bytes32Set;
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -85,6 +92,17 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      * @notice Throw when an on-chain mint vector's config parameter isn't met
      */
     error OnchainVectorMintGuardFailed();
+
+    /**
+     * @notice Throw when a mint is tried on a vector of the
+     *         wrong collection type (edition -> series, series -> edition)
+     */
+    error VectorWrongCollectionType();
+
+    /**
+     * @notice Throw when msgSender is not directly an EOA
+     */
+    error SenderNotDirectEOA();
 
     /**
      * @notice On-chain mint vector
@@ -316,6 +334,11 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
     uint256 private _platformMintFee;
 
     /**
+     * @notice System-wide mint vectors
+     */
+    mapping(uint256 => AbridgedVectorData) private _abridgedVectors;
+
+    /**
      * @notice Emitted when platform executor is added or removed
      * @param executor Changed executor
      * @param added True if executor was added and false otherwise
@@ -323,19 +346,25 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
     event PlatformExecutorChanged(address indexed executor, bool indexed added);
 
     /**
-     * @notice Emitted when vector is created on-chain
+     * @notice Emitted when vector for edition based colletction is created on-chain
      * @param vectorId ID of vector
-     * @param editionId Edition id of vector, meaningful if vector is for Editions collection
+     * @param editionId Edition id of vector
      * @param contractAddress Collection contract address
      */
-    event VectorCreated(uint256 indexed vectorId, uint256 indexed editionId, address indexed contractAddress);
+    event EditionVectorCreated(uint256 indexed vectorId, uint48 indexed editionId, address indexed contractAddress);
+
+    /**
+     * @notice Emitted when vector for series based collection is created on-chain
+     * @param vectorId ID of vector
+     * @param contractAddress Collection contract address
+     */
+    event SeriesVectorCreated(uint256 indexed vectorId, address indexed contractAddress);
 
     /**
      * @notice Emitted when vector is updated on-chain
      * @param vectorId ID of vector
-     * @param newVector New vector details
      */
-    event VectorUpdated(uint256 indexed vectorId, Vector newVector);
+    event VectorUpdated(uint256 indexed vectorId);
 
     /**
      * @notice Emitted when vector is deleted on-chain
@@ -485,120 +514,96 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
     }
 
     /**
-     * @notice Creates on-chain vector
-     * @param _vector Vector to create
-     * @param _vectorMutability Vector mutability
-     * @param editionId Edition id of vector, meaningful if vector is for Editions collection
+     * @notice See {IAbridgedMintVector-createAbridgedVector}
      */
-    function createVector(
-        Vector calldata _vector,
-        VectorMutability calldata _vectorMutability,
-        uint256 editionId
+    function createAbridgedVector(AbridgedVectorData calldata _vector) external {
+        address msgSender = _msgSender();
+
+        if (
+            address(_vector.contractAddress) == msgSender ||
+            Ownable(address(_vector.contractAddress)).owner() == msgSender
+        ) {
+            if (_vector.totalClaimedViaVector > 0) {
+                _revert(InvalidTotalClaimed.selector);
+            }
+
+            _vectorSupply++;
+
+            _abridgedVectors[_vectorSupply] = _vector;
+
+            if (_vector.editionBasedCollection) {
+                emit EditionVectorCreated(_vectorSupply, _vector.editionId, address(_vector.contractAddress));
+            } else {
+                emit SeriesVectorCreated(_vectorSupply, address(_vector.contractAddress));
+            }
+        } else {
+            _revert(Unauthorized.selector);
+        }
+    }
+
+    /* solhint-disable code-complexity */
+    /**
+     * @notice See {IAbridgedMintVector-updateAbridgedVector}
+     */
+    function updateAbridgedVector(
+        uint256 vectorId,
+        AbridgedVector calldata _newVector,
+        UpdateAbridgedVectorConfig calldata updateConfig
     ) external {
-        if (Ownable(_vector.contractAddress).owner() != _msgSender()) {
+        address contractAddress = address(_abridgedVectors[vectorId].contractAddress);
+        address msgSender = _msgSender();
+        // check owner() first, more likely
+        if (Ownable(contractAddress).owner() == msgSender || msgSender == contractAddress) {
+            if (updateConfig.updateStartTimestamp > 0) {
+                _abridgedVectors[vectorId].startTimestamp = _newVector.startTimestamp;
+            }
+            if (updateConfig.updateEndTimestamp > 0) {
+                _abridgedVectors[vectorId].endTimestamp = _newVector.endTimestamp;
+            }
+            if (updateConfig.updatePaymentRecipient > 0) {
+                _abridgedVectors[vectorId].paymentRecipient = uint160(_newVector.paymentRecipient);
+            }
+            if (updateConfig.updateMaxTotalClaimableViaVector > 0) {
+                _abridgedVectors[vectorId].maxTotalClaimableViaVector = _newVector.maxTotalClaimableViaVector;
+            }
+            if (updateConfig.updateTokenLimitPerTx > 0) {
+                _abridgedVectors[vectorId].tokenLimitPerTx = _newVector.tokenLimitPerTx;
+            }
+            if (updateConfig.updateMaxUserClaimableViaVector > 0) {
+                _abridgedVectors[vectorId].maxUserClaimableViaVector = _newVector.maxUserClaimableViaVector;
+            }
+            if (updateConfig.updatePricePerToken > 0) {
+                _abridgedVectors[vectorId].pricePerToken = _newVector.pricePerToken;
+            }
+            if (updateConfig.updateAllowlistRoot > 0) {
+                _abridgedVectors[vectorId].allowlistRoot = _newVector.allowlistRoot;
+            }
+            if (updateConfig.updatedRequireDirectEOA > 0) {
+                _abridgedVectors[vectorId].requireDirectEOA = _newVector.requireDirectEOA;
+            }
+
+            emit VectorUpdated(vectorId);
+        } else {
             _revert(Unauthorized.selector);
         }
-        if (_vector.totalClaimedViaVector > 0) {
-            _revert(InvalidTotalClaimed.selector);
-        }
-
-        _vectorSupply++;
-        vectors[_vectorSupply] = _vector;
-        vectorMutabilities[_vectorSupply] = _vectorMutability;
-        vectorToEditionId[_vectorSupply] = editionId;
-
-        emit VectorCreated(_vectorSupply, editionId, _vector.contractAddress);
     }
 
-    /**
-     * @notice Updates on-chain vector
-     * @param vectorId ID of vector to update
-     * @param _newVector New vector details
-     */
-    function updateVector(uint256 vectorId, Vector calldata _newVector) external {
-        Vector memory _oldVector = vectors[vectorId];
-        if (vectorMutabilities[vectorId].updatesFrozen > 0) {
-            _revert(VectorUpdateActionFrozen.selector);
-        }
-        if (_oldVector.totalClaimedViaVector != _newVector.totalClaimedViaVector) {
-            _revert(InvalidTotalClaimed.selector);
-        }
-        if (Ownable(_oldVector.contractAddress).owner() != _msgSender()) {
-            _revert(Unauthorized.selector);
-        }
-
-        vectors[vectorId] = _newVector;
-
-        emit VectorUpdated(vectorId, _newVector);
-    }
+    /* solhint-enable code-complexity */
 
     /**
-     * @notice Deletes on-chain vector
-     * @param vectorId ID of vector to delete
+     * @notice See {IAbridgedMintVector-deleteAbridgedVector}
      */
-    function deleteVector(uint256 vectorId) external {
-        Vector memory _oldVector = vectors[vectorId];
-        if (vectorMutabilities[vectorId].deleteFrozen > 0) {
-            _revert(VectorUpdateActionFrozen.selector);
-        }
-        if (Ownable(_oldVector.contractAddress).owner() != _msgSender()) {
+    function deleteAbridgedVector(uint256 vectorId) external {
+        address contractAddress = address(_abridgedVectors[vectorId].contractAddress);
+        address msgSender = _msgSender();
+        // check .owner() first, more likely
+        if (Ownable(contractAddress).owner() == msgSender || msgSender == contractAddress) {
+            delete _abridgedVectors[vectorId];
+
+            emit VectorDeleted(vectorId);
+        } else {
             _revert(Unauthorized.selector);
         }
-
-        delete vectors[vectorId];
-        delete vectorMutabilities[vectorId];
-        delete vectorToEditionId[_vectorSupply];
-
-        emit VectorDeleted(vectorId);
-    }
-
-    /**
-     * @notice Pauses on-chain vector
-     * @param vectorId ID of vector to pause
-     */
-    function pauseVector(uint256 vectorId) external {
-        Vector memory _oldVector = vectors[vectorId];
-        if (vectorMutabilities[vectorId].pausesFrozen > 0) {
-            _revert(VectorUpdateActionFrozen.selector);
-        }
-        if (Ownable(_oldVector.contractAddress).owner() != _msgSender()) {
-            _revert(Unauthorized.selector);
-        }
-
-        vectors[vectorId].paused = 1;
-
-        emit VectorPausedOrUnpaused(vectorId, 1);
-    }
-
-    /**
-     * @notice Unpauses on-chain vector
-     * @param vectorId ID of vector to unpause
-     */
-    function unpauseVector(uint256 vectorId) external {
-        Vector memory _oldVector = vectors[vectorId];
-        if (Ownable(_oldVector.contractAddress).owner() != _msgSender()) {
-            _revert(Unauthorized.selector);
-        }
-
-        vectors[vectorId].paused = 0;
-
-        emit VectorPausedOrUnpaused(vectorId, 0);
-    }
-
-    /**
-     * @notice Updates on-chain vector mutability. Protected by vector mutability field updatesFrozen itself
-     * @param vectorId ID of vector mutability to update
-     * @param _newVectorMutability New vector mutability details
-     */
-    function updateVectorMutability(uint256 vectorId, VectorMutability calldata _newVectorMutability) external {
-        if (vectorMutabilities[vectorId].updatesFrozen > 0) {
-            _revert(VectorUpdateActionFrozen.selector);
-        }
-        if (Ownable(vectors[vectorId].contractAddress).owner() != _msgSender()) {
-            _revert(Unauthorized.selector);
-        }
-
-        vectorMutabilities[vectorId] = _newVectorMutability;
     }
 
     /**
@@ -654,31 +659,36 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      */
     function vectorMintEdition721(
         uint256 vectorId,
-        uint64 numTokensToMint,
+        uint48 numTokensToMint,
         address mintRecipient
     ) external payable {
         address msgSender = _msgSender();
 
-        Vector memory _vector = vectors[vectorId];
-        uint64 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
-        uint64 newNumClaimedForUser = userClaims[vectorId][msgSender] + numTokensToMint;
+        AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
+        uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
+        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][msgSender]) + numTokensToMint;
 
         if (_vector.allowlistRoot != 0) {
             _revert(AllowlistInvalid.selector);
         }
+        if (!_vector.editionBasedCollection) {
+            _revert(VectorWrongCollectionType.selector);
+        }
+        if (_vector.requireDirectEOA && msgSender != tx.origin) {
+            _revert(SenderNotDirectEOA.selector);
+        }
+
+        _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
+        userClaims[vectorId][msgSender] = uint64(newNumClaimedForUser);
 
         _vectorMintEdition721(
             vectorId,
             _vector,
-            vectorToEditionId[vectorId],
             numTokensToMint,
             mintRecipient,
             newNumClaimedViaVector,
             newNumClaimedForUser
         );
-
-        vectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
-        userClaims[vectorId][msgSender] = newNumClaimedForUser;
     }
 
     /**
@@ -690,34 +700,123 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      */
     function vectorMintEdition721WithAllowlist(
         uint256 vectorId,
-        uint64 numTokensToMint,
+        uint48 numTokensToMint,
         address mintRecipient,
         bytes32[] calldata proof
     ) external payable {
         address msgSender = _msgSender();
 
-        Vector memory _vector = vectors[vectorId];
-        uint64 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
-        uint64 newNumClaimedForUser = userClaims[vectorId][msgSender] + numTokensToMint;
+        AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
+        uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
+        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][msgSender]) + numTokensToMint;
 
         // merkle tree allowlist validation
         bytes32 leaf = keccak256(abi.encodePacked(msgSender));
         if (!MerkleProof.verify(proof, _vector.allowlistRoot, leaf)) {
             _revert(AllowlistInvalid.selector);
         }
+        if (!_vector.editionBasedCollection) {
+            _revert(VectorWrongCollectionType.selector);
+        }
+        if (_vector.requireDirectEOA && msgSender != tx.origin) {
+            _revert(SenderNotDirectEOA.selector);
+        }
+
+        _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
+        userClaims[vectorId][msgSender] = uint64(newNumClaimedForUser);
 
         _vectorMintEdition721(
             vectorId,
             _vector,
-            vectorToEditionId[vectorId],
             numTokensToMint,
             mintRecipient,
             newNumClaimedViaVector,
             newNumClaimedForUser
         );
+    }
 
-        vectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
-        userClaims[vectorId][msgSender] = newNumClaimedForUser;
+    /**
+     * @notice Mint on vector pointing to ERC721General or ERC721Generative collection
+     * @param vectorId ID of vector
+     * @param numTokensToMint Number of tokens to mint
+     * @param mintRecipient Who to mint the NFT(s) to
+     */
+    function vectorMintSeries721(
+        uint256 vectorId,
+        uint48 numTokensToMint,
+        address mintRecipient
+    ) external payable {
+        address msgSender = _msgSender();
+
+        AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
+        uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
+        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][msgSender]) + numTokensToMint;
+
+        if (_vector.allowlistRoot != 0) {
+            _revert(AllowlistInvalid.selector);
+        }
+        if (_vector.editionBasedCollection) {
+            _revert(VectorWrongCollectionType.selector);
+        }
+        if (_vector.requireDirectEOA && msgSender != tx.origin) {
+            _revert(SenderNotDirectEOA.selector);
+        }
+
+        _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
+        userClaims[vectorId][msgSender] = uint64(newNumClaimedForUser);
+
+        _vectorMintGeneral721(
+            vectorId,
+            _vector,
+            numTokensToMint,
+            mintRecipient,
+            newNumClaimedViaVector,
+            newNumClaimedForUser
+        );
+    }
+
+    /**
+     * @notice Mint on vector pointing to ERC721General or ERC721Generative collection
+     * @param vectorId ID of vector
+     * @param numTokensToMint Number of tokens to mint
+     * @param mintRecipient Who to mint the NFT(s) to
+     * @param proof Proof of minter's inclusion in allowlist
+     */
+    function vectorMintSeries721WithAllowlist(
+        uint256 vectorId,
+        uint48 numTokensToMint,
+        address mintRecipient,
+        bytes32[] calldata proof
+    ) external payable {
+        address msgSender = _msgSender();
+
+        AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
+        uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
+        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][msgSender]) + numTokensToMint;
+
+        // merkle tree allowlist validation
+        bytes32 leaf = keccak256(abi.encodePacked(msgSender));
+        if (!MerkleProof.verify(proof, _vector.allowlistRoot, leaf)) {
+            _revert(AllowlistInvalid.selector);
+        }
+        if (_vector.editionBasedCollection) {
+            _revert(VectorWrongCollectionType.selector);
+        }
+        if (_vector.requireDirectEOA && msgSender != tx.origin) {
+            _revert(SenderNotDirectEOA.selector);
+        }
+
+        _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
+        userClaims[vectorId][msgSender] = uint64(newNumClaimedForUser);
+
+        _vectorMintGeneral721(
+            vectorId,
+            _vector,
+            numTokensToMint,
+            mintRecipient,
+            newNumClaimedViaVector,
+            newNumClaimedForUser
+        );
     }
 
     /**
@@ -742,55 +841,6 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
                 _claim.numTokensToMint
             );
         }
-    }
-
-    /**
-     * @notice Mint on an ERC721Editions or ERC721SingleEdiion collection with a valid claim, using meta-tx packets
-     * @param claim Claim
-     * @param claimSignature Signed + encoded claim
-     * @param mintRecipient Who to mint the NFT(s) to
-     */
-    function gatedMintPaymentPacketEdition721(
-        ClaimWithMetaTxPacket calldata claim,
-        bytes calldata claimSignature,
-        address mintRecipient
-    ) external payable {
-        address msgSender = _msgSender();
-
-        _verifyAndUpdateClaimWithMetaTxPacket(claim, claimSignature, msgSender);
-
-        if (claim.currency == address(0)) {
-            _revert(CurrencyTypeInvalid.selector);
-        }
-
-        // make payments
-        if (claim.pricePerToken > 0) {
-            _processERC20PaymentWithMetaTxPackets(
-                claim.currency,
-                claim.purchaseToCreatorPacket,
-                claim.purchaseToPlatformPacket,
-                msgSender,
-                claim.offchainVectorId,
-                claim.pricePerToken * claim.numTokensToMint
-            );
-        }
-
-        if (msg.value < claim.numTokensToMint * _platformMintFee) {
-            _revert(MintFeeTooLow.selector);
-        }
-
-        // mint NFT(s)
-        if (claim.numTokensToMint == 1) {
-            IERC721EditionMint(claim.contractAddress).mintOneToRecipient(claim.editionId, mintRecipient);
-        } else {
-            IERC721EditionMint(claim.contractAddress).mintAmountToRecipient(
-                claim.editionId,
-                mintRecipient,
-                claim.numTokensToMint
-            );
-        }
-
-        emit NumTokenMint(claim.offchainVectorId, claim.contractAddress, false, claim.numTokensToMint);
     }
 
     /**
@@ -884,6 +934,7 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         }
         uint256 numTokensToMint = tokenIds.length;
 
+        /* solhint-disable no-empty-blocks */
         for (uint256 i = 0; i < numTokensToMint; i++) {
             // if any token has already been minted, return false
             try IERC721(claim.contractAddress).ownerOf(tokenIds[i]) returns (address tokenOwner) {
@@ -891,9 +942,10 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
                     return false;
                 }
             } catch {
-                return false;
+                // valid, ownerOf reverted
             }
         }
+        /* solhint-enable no-empty-blocks */
 
         return
             _isPlatformExecutor(signer) &&
@@ -945,6 +997,30 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      */
     function isNonceUsed(bytes32 vectorId, bytes32 nonce) external view returns (bool) {
         return _offchainVectorsToNoncesUsed[vectorId].contains(nonce);
+    }
+
+    /**
+     * @notice See {IAbridgedMintVector-getAbridgedVector}
+     */
+    function getAbridgedVector(uint256 vectorId) external view returns (AbridgedVector memory) {
+        AbridgedVectorData memory data = _abridgedVectors[vectorId];
+        return
+            AbridgedVector(
+                address(data.contractAddress),
+                data.startTimestamp,
+                data.endTimestamp,
+                address(data.paymentRecipient),
+                data.maxTotalClaimableViaVector,
+                data.totalClaimedViaVector,
+                address(data.currency),
+                data.tokenLimitPerTx,
+                data.maxUserClaimableViaVector,
+                data.pricePerToken,
+                data.editionId,
+                data.editionBasedCollection,
+                data.requireDirectEOA,
+                data.allowlistRoot
+            );
     }
 
     /* solhint-disable no-empty-blocks */
@@ -1184,15 +1260,14 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      */
     function _processVectorMint(
         uint256 _vectorId,
-        Vector memory _vector,
-        uint64 numTokensToMint,
-        uint256 newNumClaimedViaVector,
-        uint256 newNumClaimedForUser
+        AbridgedVectorData memory _vector,
+        uint48 numTokensToMint,
+        uint48 newNumClaimedViaVector,
+        uint48 newNumClaimedForUser
     ) private {
         if (
             (_vector.maxTotalClaimableViaVector < newNumClaimedViaVector && _vector.maxTotalClaimableViaVector != 0) ||
             (_vector.maxUserClaimableViaVector < newNumClaimedForUser && _vector.maxUserClaimableViaVector != 0) ||
-            (_vector.paused != 0) ||
             ((_vector.startTimestamp > block.timestamp && _vector.startTimestamp != 0) ||
                 (block.timestamp > _vector.endTimestamp && _vector.endTimestamp != 0)) ||
             (numTokensToMint == 0) ||
@@ -1204,19 +1279,24 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
         // calculate mint fee amount
         uint256 mintFeeAmount = _platformMintFee * numTokensToMint;
 
-        if (_vector.currency == address(0) && _vector.pricePerToken > 0) {
+        if (_vector.currency == 0 && _vector.pricePerToken > 0) {
             // pay in native gas token
             uint256 amount = numTokensToMint * _vector.pricePerToken;
-            _processNativeGasTokenPayment(amount, mintFeeAmount, _vector.paymentRecipient, bytes32(_vectorId));
+            _processNativeGasTokenPayment(
+                amount,
+                mintFeeAmount,
+                payable(address(_vector.paymentRecipient)),
+                bytes32(_vectorId)
+            );
         } else if (_vector.pricePerToken > 0) {
             // pay in ERC20
             uint256 amount = numTokensToMint * _vector.pricePerToken;
             _processERC20Payment(
                 amount,
                 mintFeeAmount,
-                _vector.paymentRecipient,
+                payable(address(_vector.paymentRecipient)),
                 _msgSender(),
-                _vector.currency,
+                address(_vector.currency),
                 bytes32(_vectorId)
             );
         } else {
@@ -1225,7 +1305,7 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
             }
         }
 
-        emit NumTokenMint(bytes32(_vectorId), _vector.contractAddress, true, numTokensToMint);
+        emit NumTokenMint(bytes32(_vectorId), address(_vector.contractAddress), true, numTokensToMint);
     }
 
     /**
@@ -1239,17 +1319,20 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      */
     function _vectorMintGeneral721(
         uint256 _vectorId,
-        Vector memory _vector,
-        uint64 numTokensToMint,
+        AbridgedVectorData memory _vector,
+        uint48 numTokensToMint,
         address mintRecipient,
-        uint256 newNumClaimedViaVector,
-        uint256 newNumClaimedForUser
+        uint48 newNumClaimedViaVector,
+        uint48 newNumClaimedForUser
     ) private {
         _processVectorMint(_vectorId, _vector, numTokensToMint, newNumClaimedViaVector, newNumClaimedForUser);
         if (numTokensToMint == 1) {
-            IERC721GeneralMint(_vector.contractAddress).mintOneToOneRecipient(mintRecipient);
+            IERC721GeneralMint(address(_vector.contractAddress)).mintOneToOneRecipient(mintRecipient);
         } else {
-            IERC721GeneralMint(_vector.contractAddress).mintAmountToOneRecipient(mintRecipient, numTokensToMint);
+            IERC721GeneralMint(address(_vector.contractAddress)).mintAmountToOneRecipient(
+                mintRecipient,
+                numTokensToMint
+            );
         }
     }
 
@@ -1257,7 +1340,6 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      * @notice Mint on vector pointing to ERC721Editions or ERC721SingleEdiion collection
      * @param _vectorId ID of vector
      * @param _vector Vector being minted on
-     * @param editionId ID of edition being minted on
      * @param numTokensToMint Number of tokens to mint
      * @param mintRecipient Who to mint the NFT(s) to
      * @param newNumClaimedViaVector New number of NFTs minted via vector after this ones
@@ -1265,19 +1347,18 @@ contract MintManager is EIP712Upgradeable, UUPSUpgradeable, OwnableUpgradeable, 
      */
     function _vectorMintEdition721(
         uint256 _vectorId,
-        Vector memory _vector,
-        uint256 editionId,
-        uint64 numTokensToMint,
+        AbridgedVectorData memory _vector,
+        uint48 numTokensToMint,
         address mintRecipient,
-        uint256 newNumClaimedViaVector,
-        uint256 newNumClaimedForUser
+        uint48 newNumClaimedViaVector,
+        uint48 newNumClaimedForUser
     ) private {
         _processVectorMint(_vectorId, _vector, numTokensToMint, newNumClaimedViaVector, newNumClaimedForUser);
         if (numTokensToMint == 1) {
-            IERC721EditionMint(_vector.contractAddress).mintOneToRecipient(editionId, mintRecipient);
+            IERC721EditionMint(address(_vector.contractAddress)).mintOneToRecipient(_vector.editionId, mintRecipient);
         } else {
-            IERC721EditionMint(_vector.contractAddress).mintAmountToRecipient(
-                editionId,
+            IERC721EditionMint(address(_vector.contractAddress)).mintAmountToRecipient(
+                _vector.editionId,
                 mintRecipient,
                 numTokensToMint
             );

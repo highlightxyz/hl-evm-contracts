@@ -1,10 +1,16 @@
+import {
+  ERC721SingleEdition,
+  EditionsMetadataRenderer,
+  MinimalForwarder,
+  MintManager,
+  Observability,
+} from "../types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-import { ERC721SingleEdition, EditionsMetadataRenderer, MinimalForwarder, MintManager, Observability } from "../types";
 import { Errors } from "./__utils__/data";
-import { setupSingleEdition, setupSystem } from "./__utils__/helpers";
+import { DEFAULT_ONCHAIN_MINT_VECTOR, setupSingleEdition, setupSystem } from "./__utils__/helpers";
 
 describe("ERC721SingleEdition functionality", () => {
   let editions: ERC721SingleEdition;
@@ -505,5 +511,52 @@ describe("ERC721SingleEdition functionality", () => {
         );
       });
     });
+  });
+
+  it("Can deploy with direct mint", async function () {
+    editions = await setupSingleEdition(
+      observability.address,
+      singleEditionImplementation,
+      mintManager.address,
+      trustedForwarder.address,
+      emr.address,
+      editionsOwner,
+      100,
+      "name",
+      "symbol",
+      { ...DEFAULT_ONCHAIN_MINT_VECTOR, maxUserClaimableViaVector: 2 },
+    );
+
+    expect((await mintManager.getAbridgedVector(1)).slice(0, 14)).to.deep.equal([
+      editions.address,
+      DEFAULT_ONCHAIN_MINT_VECTOR.startTimestamp,
+      DEFAULT_ONCHAIN_MINT_VECTOR.endTimestamp,
+      editionsOwner.address,
+      DEFAULT_ONCHAIN_MINT_VECTOR.maxTotalClaimableViaVector,
+      0,
+      ethers.constants.AddressZero,
+      DEFAULT_ONCHAIN_MINT_VECTOR.tokenLimitPerTx,
+      2,
+      DEFAULT_ONCHAIN_MINT_VECTOR.pricePerToken,
+      0,
+      true,
+      false,
+      DEFAULT_ONCHAIN_MINT_VECTOR.allowlistRoot,
+    ]);
+
+    await expect(
+      mintManager.vectorMintEdition721(1, 2, editionsOwner.address, {
+        value: ethers.utils.parseEther("0.0008").mul(2),
+      }),
+    )
+      .to.emit(mintManager, "NumTokenMint")
+      .withArgs(ethers.utils.hexZeroPad(ethers.utils.hexlify(1), 32), editions.address, true, 2);
+
+    await expect(mintManager.vectorMintEdition721(1, 1, editionsOwner.address)).to.be.revertedWithCustomError(
+      mintManager,
+      "OnchainVectorMintGuardFailed",
+    );
+
+    expect(await mintManager.userClaims(1, editionsOwner.address)).to.equal(2);
   });
 });

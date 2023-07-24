@@ -1,9 +1,4 @@
 import { parseEther } from "@ethersproject/units";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import {
   AuctionManager,
   ERC721Editions,
@@ -14,6 +9,11 @@ import {
   Observability,
 } from "../types";
 import { signGatedBid } from "./__utils__/auction";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import { hourFromNow, setupEtherAuctionWithNewToken, setupSystem } from "./__utils__/helpers";
 
 describe("Auction Manager", () => {
@@ -166,12 +166,6 @@ describe("Auction Manager", () => {
         "id3",
         endTime3,
         editionsOwner.address,
-        true,
-      );
-
-      expect(await editions.operatorFiltererRegistry()).to.equal(ethers.constants.AddressZero);
-      expect(await editionsWithMarketplaceFilterer.operatorFiltererRegistry()).to.equal(
-        "0x000000000000AAeB6D7670E522A718067333cd4E",
       );
 
       const res = await auctionManager.getFullAuctionsData([

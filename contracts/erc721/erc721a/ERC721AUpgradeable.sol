@@ -106,6 +106,22 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
     }
 
     /**
+     * @dev Hook that is called after a set of serially-ordered token IDs
+     * have been transferred.
+     *
+     * `startTokenId` - the first token ID to be transferred.
+     *
+     * Calling conditions:
+     *
+     * - `from` and `to` are both non-zero, since this is only invoked ont transfers
+     */
+    function _afterTokenTransfers(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal virtual {}
+
+    /**
      * @dev Added by Highlight to facilitate updating of name and symbol
      */
     function _setContractMetadata(string calldata newName, string calldata newSymbol) internal {
@@ -633,6 +649,8 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
             )
         }
         if (toMasked == 0) _revert(TransferToZeroAddress.selector);
+
+        _afterTokenTransfers(from, to, tokenId);
     }
 
     /**

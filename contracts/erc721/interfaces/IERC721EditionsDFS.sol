@@ -19,7 +19,8 @@ interface IERC721EditionsDFS {
         string memory _editionUri,
         uint256 _editionSize,
         address _editionTokenManager,
-        IRoyaltyManager.Royalty memory editionRoyalty
+        IRoyaltyManager.Royalty memory editionRoyalty,
+        bytes calldata mintVectorData
     ) external returns (uint256);
 
     /**

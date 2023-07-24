@@ -6,7 +6,6 @@ import "../metadata/MetadataEncryption.sol";
 import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
 import "./interfaces/IERC721GeneralMint.sol";
-import "./MarketplaceFilterer/MarketplaceFilterer.sol";
 import "./ERC721GeneralBase.sol";
 
 /**

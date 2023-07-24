@@ -189,7 +189,7 @@ abstract contract ERC721Base is
      * @notice Registers a minter
      * @param minter New minter
      */
-    function registerMinter(address minter) external onlyOwner nonReentrant {
+    function registerMinter(address minter) external onlyOwner {
         if (!_minters.add(minter)) {
             _revert(MinterRegistrationInvalid.selector);
         }
@@ -202,7 +202,7 @@ abstract contract ERC721Base is
      * @notice Unregisters a minter
      * @param minter Minter to unregister
      */
-    function unregisterMinter(address minter) external onlyOwner nonReentrant {
+    function unregisterMinter(address minter) external onlyOwner {
         if (!_minters.remove(minter)) {
             _revert(MinterRegistrationInvalid.selector);
         }
@@ -499,7 +499,9 @@ abstract contract ERC721Base is
         __ReentrancyGuard_init();
         _transferOwnership(_creator);
 
-        _defaultRoyalty = defaultRoyalty;
+        if (_defaultRoyalty.recipientAddress != address(0)) {
+            _defaultRoyalty = defaultRoyalty;
+        }
 
         if (_defaultTokenManager != address(0)) {
             defaultManager = _defaultTokenManager;

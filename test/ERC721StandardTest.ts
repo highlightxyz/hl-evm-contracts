@@ -1,7 +1,3 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import {
   AuctionManager,
   ConsensualNonTransferableTokenManager,
@@ -16,8 +12,17 @@ import {
   TotalLockedTokenManager,
   TransferAndBurnLockedTokenManager,
 } from "../types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import { Errors } from "./__utils__/data";
-import { setupEditions, setupGeneral, setupSingleEdition, setupSystem } from "./__utils__/helpers";
+import {
+  setupEditions,
+  setupGeneral,
+  setupSingleEdition,
+  setupSystem,
+} from "./__utils__/helpers";
 
 const defaultEditionInfo = ethers.utils.defaultAbiCoder.encode(
   ["tuple(string, string, string, string, string, string)"],
@@ -496,11 +501,11 @@ describe("ERC721 Standard with token managers functionality", () => {
 
       await expect(editions.registerMinter(owner.address)).to.emit(editions, "MinterRegistrationChanged");
 
-      await expect(editions.createEdition(defaultEditionInfo, 4, ethers.constants.AddressZero, zeroRoyalty))
+      await expect(editions.createEdition(defaultEditionInfo, 4, ethers.constants.AddressZero, zeroRoyalty, "0x"))
         .to.emit(editions, "EditionCreated")
         .withArgs(0, 4, ethers.constants.AddressZero);
 
-      await expect(editions.createEdition(defaultEditionInfo, 2, totalLockedTokenManager.address, zeroRoyalty))
+      await expect(editions.createEdition(defaultEditionInfo, 2, totalLockedTokenManager.address, zeroRoyalty, "0x"))
         .to.emit(editions, "EditionCreated")
         .withArgs(1, 2, totalLockedTokenManager.address);
 
@@ -1165,6 +1170,7 @@ describe("ERC721 Standard with token managers functionality", () => {
           4,
           "name",
           "SYM",
+          null,
           false,
           nonTransferableTokenManager.address,
         );
@@ -1215,6 +1221,7 @@ describe("ERC721 Standard with token managers functionality", () => {
           4,
           "name",
           "SYM",
+          null,
           false,
           consensualNonTransferableTokenManager.address,
         );
