@@ -30,6 +30,7 @@ const chainIds = {
   "arbitrum-goerli": 421613,
   optimism: 10,
   "optimism-goerli": 420,
+  base: 8453,
   "base-goerli": 84531,
   zora: 7777777,
   "zora-goerli": 999,
@@ -52,6 +53,8 @@ function getUrl(chain: keyof typeof chainIds): string {
     return "https://opt-mainnet.g.alchemy.com/v2/XtgT_4vf4xad9To3EOhQpH_7i62hYhKD";
   } else if (chain === "optimism-goerli") {
     return "https://opt-goerli.g.alchemy.com/v2/COI6ezi-VSOBEQIMKbX5sImZ_mYy6urr";
+  } else if (chain === "base") {
+    return "https://developer-access-mainnet.base.org";
   } else if (chain === "base-goerli") {
     return "https://base-goerli.public.blastapi.io";
   } else if (chain === "zora") {
@@ -75,11 +78,20 @@ const config: HardhatUserConfig = {
       arbitrumOne: process.env.ARBITRUMSCAN_API_KEY || "",
       "optimism-goerli": process.env.OPTIMISMSCAN_API_KEY || "",
       "arbitrum-goerli": process.env.ARBITRUMSCAN_API_KEY || "",
+      base: process.env.BASESCAN_API_KEY || "",
       "base-goerli": process.env.BASESCAN_API_KEY || "",
       zora: process.env.ZORASCAN_API_KEY || "",
       "zora-goerli": process.env.ZORASCAN_API_KEY || "",
     },
     customChains: [
+      {
+        network: "base",
+        chainId: 8453,
+        urls: {
+          apiURL: "https://api.basescan.org/api",
+          browserURL: "https://basescan.org",
+        },
+      },
       {
         network: "base-goerli",
         chainId: 84531,
@@ -145,6 +157,7 @@ const config: HardhatUserConfig = {
     "arbitrum-goerli": getChainConfig("arbitrum-goerli"),
     optimism: getChainConfig("optimism"),
     "optimism-goerli": getChainConfig("optimism-goerli"),
+    base: getChainConfig("base"),
     "base-goerli": getChainConfig("base-goerli"),
     zora: getChainConfig("zora"),
     "zora-goerli": getChainConfig("zora-goerli"),

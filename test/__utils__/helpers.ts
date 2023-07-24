@@ -24,6 +24,27 @@ import {
 } from "../../types";
 import { signGatedMint, signGatedMintWithMetaTxPacket, signGatedSeriesMint, signWETHMetaTxRequest } from "./mint";
 
+export type OnchainMintVectorParams = {
+  startTimestamp: number;
+  endTimestamp: number;
+  pricePerToken: BigNumber;
+  tokenLimitPerTx: number;
+  maxTotalClaimableViaVector: number;
+  maxUserClaimableViaVector: number;
+  allowlistRoot: string;
+  editionId?: number;
+};
+
+export const DEFAULT_ONCHAIN_MINT_VECTOR: OnchainMintVectorParams = {
+  startTimestamp: 0,
+  endTimestamp: 0,
+  pricePerToken: ethers.utils.parseEther("0"),
+  tokenLimitPerTx: 0,
+  maxTotalClaimableViaVector: 0,
+  maxUserClaimableViaVector: 0,
+  allowlistRoot: ethers.constants.HashZero,
+};
+
 export const setupSingleEdition = async (
   observabilityAddress: string,
   singleImplementationAddress: string,
@@ -34,6 +55,7 @@ export const setupSingleEdition = async (
   size: number,
   name: string,
   symbol: string,
+  directMint: OnchainMintVectorParams | null = null,
   useMarketplaceFilter = false,
   defaultTokenManager = ethers.constants.AddressZero,
   royaltyRecipient = ethers.constants.AddressZero,
@@ -81,9 +103,26 @@ export const setupSingleEdition = async (
     ],
   );
 
+  const mintVectorData = directMint
+    ? ethers.utils.defaultAbiCoder.encode(
+        ["address", "address", "uint48", "uint48", "uint192", "uint48", "uint48", "uint48", "bytes32"],
+        [
+          mintManagerAddress,
+          creator.address,
+          directMint.startTimestamp,
+          directMint.endTimestamp,
+          directMint.pricePerToken,
+          directMint.tokenLimitPerTx,
+          directMint.maxTotalClaimableViaVector,
+          directMint.maxUserClaimableViaVector,
+          ethers.constants.HashZero,
+        ],
+      )
+    : "0x";
+
   const SingleEdition = await (
     await ethers.getContractFactory("SingleEdition")
-  ).deploy(singleImplementationAddress, initializeData, observabilityAddress);
+  ).deploy(singleImplementationAddress, initializeData, mintVectorData, observabilityAddress);
   const singleEdition = await SingleEdition.deployed();
   return ERC721SingleEdition__factory.connect(singleEdition.address, creator);
 };
@@ -97,6 +136,7 @@ export const setupSingleEditionDFS = async (
   size: number,
   name: string,
   symbol: string,
+  directMint: OnchainMintVectorParams | null = null,
   useMarketplaceFilter = false,
   defaultTokenManager = ethers.constants.AddressZero,
   royaltyRecipient = ethers.constants.AddressZero,
@@ -133,9 +173,26 @@ export const setupSingleEditionDFS = async (
     ],
   );
 
+  const mintVectorData = directMint
+    ? ethers.utils.defaultAbiCoder.encode(
+        ["address", "address", "uint48", "uint48", "uint192", "uint48", "uint48", "uint48", "bytes32"],
+        [
+          mintManagerAddress,
+          creator.address,
+          directMint.startTimestamp,
+          directMint.endTimestamp,
+          directMint.pricePerToken,
+          directMint.tokenLimitPerTx,
+          directMint.maxTotalClaimableViaVector,
+          directMint.maxUserClaimableViaVector,
+          ethers.constants.HashZero,
+        ],
+      )
+    : "0x";
+
   const SingleEditionDFS = await (
     await ethers.getContractFactory("SingleEditionDFS")
-  ).deploy(singleEditionDFSImplementationAddress, initializeData, observabilityAddress);
+  ).deploy(singleEditionDFSImplementationAddress, initializeData, mintVectorData, observabilityAddress);
   const singleEditionDFS = await SingleEditionDFS.deployed();
   return ERC721SingleEditionDFS__factory.connect(singleEditionDFS.address, creator);
 };
@@ -149,6 +206,7 @@ export const setupEditions = async (
   trustedForwarderAddress: string,
   emrAddress: string,
   creator: SignerWithAddress,
+  directMint: OnchainMintVectorParams | null = null,
   defaultTokenManager = ethers.constants.AddressZero,
   royaltyRecipient = ethers.constants.AddressZero,
   royaltyPercentage = 0,
@@ -172,6 +230,23 @@ export const setupEditions = async (
     ],
   );
 
+  const mintVectorData = directMint
+    ? ethers.utils.defaultAbiCoder.encode(
+        ["address", "address", "uint48", "uint48", "uint192", "uint48", "uint48", "uint48", "bytes32"],
+        [
+          mintManagerAddress,
+          creator.address,
+          directMint.startTimestamp,
+          directMint.endTimestamp,
+          directMint.pricePerToken,
+          directMint.tokenLimitPerTx,
+          directMint.maxTotalClaimableViaVector,
+          directMint.maxUserClaimableViaVector,
+          ethers.constants.HashZero,
+        ],
+      )
+    : "0x";
+
   const MultipleEditions = await (
     await ethers.getContractFactory("MultipleEditions", creator)
   ).deploy(
@@ -185,6 +260,7 @@ export const setupEditions = async (
       royaltyPercentageBPS: royaltyPercentage,
     },
     ethers.utils.arrayify("0x"),
+    mintVectorData,
   );
   const multipleEditions = await MultipleEditions.deployed();
 
@@ -206,10 +282,11 @@ export const setupEditionsDFS = async (
   auctionManagerAddress: string,
   trustedForwarderAddress: string,
   creator: SignerWithAddress,
+  directMint: OnchainMintVectorParams | null = null,
+  editionUri = "",
   defaultTokenManager = ethers.constants.AddressZero,
   royaltyRecipient = ethers.constants.AddressZero,
   royaltyPercentage = 0,
-  editionUri = "",
   useMarketplaceFilter = false,
   name = "dummy",
   symbol = "DMY",
@@ -229,6 +306,23 @@ export const setupEditionsDFS = async (
     ],
   );
 
+  const mintVectorData = directMint
+    ? ethers.utils.defaultAbiCoder.encode(
+        ["address", "address", "uint48", "uint48", "uint192", "uint48", "uint48", "uint48", "bytes32"],
+        [
+          mintManagerAddress,
+          creator.address,
+          directMint.startTimestamp,
+          directMint.endTimestamp,
+          directMint.pricePerToken,
+          directMint.tokenLimitPerTx,
+          directMint.maxTotalClaimableViaVector,
+          directMint.maxUserClaimableViaVector,
+          ethers.constants.HashZero,
+        ],
+      )
+    : "0x";
+
   const MultipleEditionsDFS = await (
     await ethers.getContractFactory("MultipleEditionsDFS", creator)
   ).deploy(
@@ -242,6 +336,7 @@ export const setupEditionsDFS = async (
       royaltyPercentageBPS: royaltyPercentage,
     },
     ethers.utils.arrayify("0x"),
+    mintVectorData,
   );
   const multipleEditionsDFS = await MultipleEditionsDFS.deployed();
 
@@ -267,6 +362,7 @@ export const setupMultipleEdition = async (
   size: number,
   name: string,
   symbol: string,
+  directMint: OnchainMintVectorParams | null = null,
   useMarketplaceFilter = false,
   contractName = "contractName",
   royaltyPercentage = 0,
@@ -298,6 +394,23 @@ export const setupMultipleEdition = async (
     [[name, description, imageUrl, animationUrl, externalUrl, attributes]],
   );
 
+  const mintVectorData = directMint
+    ? ethers.utils.defaultAbiCoder.encode(
+        ["address", "address", "uint48", "uint48", "uint192", "uint48", "uint48", "uint48", "bytes32"],
+        [
+          mintVectorAddress,
+          creator.address,
+          directMint.startTimestamp,
+          directMint.endTimestamp,
+          directMint.pricePerToken,
+          directMint.tokenLimitPerTx,
+          directMint.maxTotalClaimableViaVector,
+          directMint.maxUserClaimableViaVector,
+          ethers.constants.HashZero,
+        ],
+      )
+    : "0x";
+
   const MultipleEditions = await (
     await ethers.getContractFactory("MultipleEditions", creator)
   ).deploy(
@@ -311,6 +424,7 @@ export const setupMultipleEdition = async (
       royaltyPercentageBPS: royaltyPercentage,
     },
     ethers.utils.arrayify("0x"),
+    mintVectorData,
   );
   const multipleEditions = await MultipleEditions.deployed();
 
@@ -327,6 +441,7 @@ export const setupMultipleEditionDFS = async (
   creator: SignerWithAddress,
   size: number,
   symbol: string,
+  directMint: OnchainMintVectorParams | null = null,
   editionUri: string = "uri",
   useMarketplaceFilter = false,
   contractName = "contractName",
@@ -348,6 +463,23 @@ export const setupMultipleEditionDFS = async (
     ],
   );
 
+  const mintVectorData = directMint
+    ? ethers.utils.defaultAbiCoder.encode(
+        ["address", "address", "uint48", "uint48", "uint192", "uint48", "uint48", "uint48", "bytes32"],
+        [
+          mintVectorAddress,
+          creator.address,
+          directMint.startTimestamp,
+          directMint.endTimestamp,
+          directMint.pricePerToken,
+          directMint.tokenLimitPerTx,
+          directMint.maxTotalClaimableViaVector,
+          directMint.maxUserClaimableViaVector,
+          ethers.constants.HashZero,
+        ],
+      )
+    : "0x";
+
   const MultipleEditionsDFS = await (
     await ethers.getContractFactory("MultipleEditionsDFS", creator)
   ).deploy(
@@ -361,6 +493,7 @@ export const setupMultipleEditionDFS = async (
       royaltyPercentageBPS: royaltyPercentage,
     },
     ethers.utils.arrayify("0x"),
+    mintVectorData,
   );
   const multipleEditionsDFS = await MultipleEditionsDFS.deployed();
 
@@ -509,6 +642,7 @@ export const setupGeneral = async (
   trustedForwarderAddress: string,
   mintManagerAddress: string,
   creator: SignerWithAddress,
+  directMint: OnchainMintVectorParams | null = null,
   useMarketplaceFilter = false,
   limitSupply = 0,
   defaultTokenManager = ethers.constants.AddressZero,
@@ -550,9 +684,26 @@ export const setupGeneral = async (
     ],
   );
 
+  const vectorData = directMint
+    ? ethers.utils.defaultAbiCoder.encode(
+        ["address", "address", "uint48", "uint48", "uint192", "uint48", "uint48", "uint48", "bytes32"],
+        [
+          mintManagerAddress,
+          creator.address,
+          directMint.startTimestamp,
+          directMint.endTimestamp,
+          directMint.pricePerToken,
+          directMint.tokenLimitPerTx,
+          directMint.maxTotalClaimableViaVector,
+          directMint.maxUserClaimableViaVector,
+          ethers.constants.HashZero,
+        ],
+      )
+    : "0x";
+
   const Series = await (
     await ethers.getContractFactory("Series", creator)
-  ).deploy(generalImplementationAddress, initializeData);
+  ).deploy(generalImplementationAddress, initializeData, vectorData);
   const series = await Series.deployed();
 
   return ERC721General__factory.connect(series.address, creator);
@@ -564,6 +715,7 @@ export const setupGenerative = async (
   trustedForwarderAddress: string,
   mintManagerAddress: string,
   creator: SignerWithAddress,
+  directMint: OnchainMintVectorParams | null = null,
   useMarketplaceFilter = false,
   limitSupply = 0,
   defaultTokenManager = ethers.constants.AddressZero,
@@ -606,9 +758,26 @@ export const setupGenerative = async (
     ],
   );
 
+  const vectorData = directMint
+    ? ethers.utils.defaultAbiCoder.encode(
+        ["address", "address", "uint48", "uint48", "uint192", "uint48", "uint48", "uint48", "bytes32"],
+        [
+          mintManagerAddress,
+          creator.address,
+          directMint.startTimestamp,
+          directMint.endTimestamp,
+          directMint.pricePerToken,
+          directMint.tokenLimitPerTx,
+          directMint.maxTotalClaimableViaVector,
+          directMint.maxUserClaimableViaVector,
+          directMint.allowlistRoot,
+        ],
+      )
+    : "0x";
+
   const GenerativeSeries = await (
     await ethers.getContractFactory("GenerativeSeries", creator)
-  ).deploy(generalImplementationAddress, initializeData, observabilityAddress);
+  ).deploy(generalImplementationAddress, initializeData, vectorData, observabilityAddress);
   const generativeSeries = await GenerativeSeries.deployed();
 
   return ERC721Generative__factory.connect(generativeSeries.address, creator);
@@ -671,6 +840,8 @@ export const setupEtherAuctionWithNewToken = async (
     ],
   );
 
+  const mintVectorData = "0x";
+
   const MultipleEditions = await (
     await ethers.getContractFactory("MultipleEditions", creator)
   ).deploy(
@@ -681,6 +852,7 @@ export const setupEtherAuctionWithNewToken = async (
     defaultTokenManager,
     { recipientAddress: royaltyRecipient, royaltyPercentageBPS: royaltyPercentage },
     auctionData,
+    mintVectorData,
   );
   const multipleEditions = await MultipleEditions.deployed();
 

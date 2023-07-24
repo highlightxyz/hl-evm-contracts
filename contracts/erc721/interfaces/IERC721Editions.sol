@@ -14,12 +14,14 @@ interface IERC721Editions {
      * @param _editionSize Edition size
      * @param _editionTokenManager Token manager for edition
      * @param editionRoyalty Edition's royalty
+     * @param mintVectorData Mint vector data
      */
     function createEdition(
         bytes memory _editionInfo,
         uint256 _editionSize,
         address _editionTokenManager,
-        IRoyaltyManager.Royalty memory editionRoyalty
+        IRoyaltyManager.Royalty memory editionRoyalty,
+        bytes calldata mintVectorData
     ) external returns (uint256);
 
     /**

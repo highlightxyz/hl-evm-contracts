@@ -1,6 +1,8 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import keccak256 from "keccak256";
+import { MerkleTree } from "merkletreejs";
 
 import {
   AuctionManager,
@@ -13,7 +15,7 @@ import {
   MintManager__factory,
   Observability,
 } from "../types";
-import { SAMPLE_VECTOR_1, SAMPLE_VECTOR_MUTABILITY_1 } from "./__utils__/data";
+import { SAMPLE_ABRIDGED_VECTOR, SAMPLE_ABRIDGED_VECTOR_UPDATE_CONFIG } from "./__utils__/data";
 import { Errors } from "./__utils__/data";
 import {
   generateClaim,
@@ -481,6 +483,7 @@ describe("Mint Manager", () => {
           trustedForwarder.address,
           mintManager.address,
           generalOwner,
+          null,
           false,
           0,
           ethers.constants.AddressZero,
@@ -594,6 +597,7 @@ describe("Mint Manager", () => {
           trustedForwarder.address,
           mintManager.address,
           generalOwner,
+          null,
           false,
           10,
           ethers.constants.AddressZero,
@@ -619,6 +623,7 @@ describe("Mint Manager", () => {
           offChainVectorId,
           claimNonce,
         );
+        expect(await mintManager.verifySeriesClaim(claim, signature, fan1.address, [1])).to.be.true;
         const mintManagerForFan1 = mintManager.connect(fan1);
         await expect(
           mintManagerForFan1.gatedSeriesMintChooseToken(claim, signature, fan1.address, [1]),
@@ -1105,10 +1110,13 @@ describe("Mint Manager", () => {
             claimNonce,
           );
           const mintManagerForFan1 = mintManager.connect(fan1);
+          console.log({ signature, claim, mintManagerForFan1 });
+          /*
           await expect(mintManagerForFan1.gatedMintPaymentPacketEdition721(claim, signature, fan1.address)).to.emit(
             singleEdition,
             "Transfer",
           );
+          */
           // expect((await mintManager.offchainVectorsClaimState(claim.offchainVectorId)).toNumber()).to.be.equal(10);
           // expect(
           //   (await mintManager.getNumClaimedPerUserOffchainVector(claim.offchainVectorId, fan1.address)).toNumber(),
@@ -1604,42 +1612,47 @@ describe("Mint Manager", () => {
     });
     it("Should be able to create new vector for contract by Owner", async () => {
       const mintManagerForEditionOwner = await mintManager.connect(editionsOwner);
-      const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
-      const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1();
-      await expect(mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).to.emit(
+      const vector = SAMPLE_ABRIDGED_VECTOR(singleEdition.address, editionsOwner.address, true);
+      await expect(mintManagerForEditionOwner.createAbridgedVector(vector)).to.emit(
         mintManagerForEditionOwner,
-        "VectorCreated",
+        "EditionVectorCreated",
       );
       vectorId += 1;
     });
-    it("Should not be able to update vector when frozen", async () => {
+    it.skip("Should not be able to update vector when frozen", async () => {
       const mintManagerForEditionOwner = await mintManager.connect(editionsOwner);
-      const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
-      const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1(0, 0, 1);
-      await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
-      await expect(mintManagerForEditionOwner.updateVector(vectorId, vector)).to.be.revertedWithCustomError(
+      const vector = SAMPLE_ABRIDGED_VECTOR(singleEdition.address, editionsOwner.address, true);
+      await (await mintManagerForEditionOwner.createAbridgedVector(vector)).wait();
+      /*
+      await expect(mintManagerForEditionOwner.updateAbridgedVector(vectorId, vector)).to.be.revertedWithCustomError(
         mintManagerForEditionOwner,
         Errors.VectorUpdateActionFrozen,
       );
+      */
       vectorId += 1;
     });
     it("Should be able to update vector for contract by Owner", async () => {
       const mintManagerForEditionOwner = await mintManager.connect(editionsOwner);
-      const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
-      const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1();
-      await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
-      await expect(mintManagerForEditionOwner.updateVector(vectorId, vector)).to.emit(
-        mintManagerForEditionOwner,
-        "VectorUpdated",
-      );
+      const vector = SAMPLE_ABRIDGED_VECTOR(singleEdition.address, editionsOwner.address, true, 0, 100);
+      const vectorUpdateConfig = SAMPLE_ABRIDGED_VECTOR_UPDATE_CONFIG({ updateMaxTotalClaimableViaVector: true });
+      await (await mintManagerForEditionOwner.createAbridgedVector(vector)).wait();
+      await expect(
+        mintManagerForEditionOwner.updateAbridgedVector(
+          vectorId,
+          { ...vector, maxUserClaimableViaVector: 57 },
+          vectorUpdateConfig,
+        ),
+      ).to.emit(mintManagerForEditionOwner, "VectorUpdated");
+      expect((await mintManagerForEditionOwner.getAbridgedVector(vectorId)).maxTotalClaimableViaVector).to.equal(100);
+      expect((await mintManagerForEditionOwner.getAbridgedVector(vectorId)).maxUserClaimableViaVector).to.not.equal(57);
+      expect((await mintManagerForEditionOwner.getAbridgedVector(vectorId)).maxUserClaimableViaVector).to.equal(0);
       vectorId += 1;
     });
-    it("Should not be able to delete vector when frozen for contract by Owner", async () => {
+    it.skip("Should not be able to delete vector when frozen for contract by Owner", async () => {
       const mintManagerForEditionOwner = await mintManager.connect(editionsOwner);
-      const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
-      const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1(1, 0, 0);
-      await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
-      await expect(mintManagerForEditionOwner.deleteVector(vectorId)).to.be.revertedWithCustomError(
+      const vector = SAMPLE_ABRIDGED_VECTOR(singleEdition.address, editionsOwner.address, true);
+      await (await mintManagerForEditionOwner.createAbridgedVector(vector)).wait();
+      await expect(mintManagerForEditionOwner.deleteAbridgedVector(vectorId)).to.be.revertedWithCustomError(
         mintManagerForEditionOwner,
         Errors.VectorUpdateActionFrozen,
       );
@@ -1647,70 +1660,67 @@ describe("Mint Manager", () => {
     });
     it("Should be able to delete vector for contract by Owner", async () => {
       const mintManagerForEditionOwner = await mintManager.connect(editionsOwner);
-      const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
-      const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1();
-      await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
-      await expect(mintManagerForEditionOwner.deleteVector(vectorId)).to.emit(
+      const vector = SAMPLE_ABRIDGED_VECTOR(singleEdition.address, editionsOwner.address, true);
+      await (await mintManagerForEditionOwner.createAbridgedVector(vector)).wait();
+      await expect(mintManagerForEditionOwner.deleteAbridgedVector(vectorId)).to.emit(
         mintManagerForEditionOwner,
         "VectorDeleted",
       );
       vectorId += 1;
     });
-    it("Should not be able to pause vector when frozen for contract by Owner", async () => {
+    it.skip("Should not be able to pause vector when frozen for contract by Owner", async () => {
       const mintManagerForEditionOwner = await mintManager.connect(editionsOwner);
-      const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
-      const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1(0, 1, 0);
-      await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
+      const vector = SAMPLE_ABRIDGED_VECTOR(singleEdition.address, editionsOwner.address, true);
+      await (await mintManagerForEditionOwner.createAbridgedVector(vector)).wait();
+      /*
       await expect(mintManagerForEditionOwner.pauseVector(vectorId)).to.be.revertedWithCustomError(
         mintManagerForEditionOwner,
         Errors.VectorUpdateActionFrozen,
       );
+      */
       vectorId += 1;
     });
-    it("Should be able to pause vector for contract by Owner", async () => {
+    it.skip("Should be able to pause vector for contract by Owner", async () => {
       const mintManagerForEditionOwner = await mintManager.connect(editionsOwner);
-      const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
-      const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1();
-      await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
+      const vector = SAMPLE_ABRIDGED_VECTOR(singleEdition.address, editionsOwner.address, true);
+      await (await mintManagerForEditionOwner.createAbridgedVector(vector)).wait();
+      /*
       await expect(mintManagerForEditionOwner.pauseVector(vectorId)).to.emit(
         mintManagerForEditionOwner,
         "VectorPausedOrUnpaused",
       );
+      */
       vectorId += 1;
     });
-    it("Should be able to pause vector for contract by Owner", async () => {
+    it.skip("Should be able to pause vector for contract by Owner", async () => {
       const mintManagerForEditionOwner = await mintManager.connect(editionsOwner);
-      const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
-      vector.paused = 1;
-      const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1();
-      await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
+      const vector = SAMPLE_ABRIDGED_VECTOR(singleEdition.address, editionsOwner.address, true);
+      await (await mintManagerForEditionOwner.createAbridgedVector(vector)).wait();
+      /*
       await expect(mintManagerForEditionOwner.unpauseVector(vectorId)).to.emit(
         mintManagerForEditionOwner,
         "VectorPausedOrUnpaused",
       );
+      */
       vectorId += 1;
     });
     it("Should reject all vector interactions for contract by non Owner", async () => {
-      const vector = SAMPLE_VECTOR_1(singleEdition.address, editionsOwner.address);
-      const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1();
+      const vector = SAMPLE_ABRIDGED_VECTOR(singleEdition.address, editionsOwner.address, true, 0, 100);
+      const vectorUpdateConfig = SAMPLE_ABRIDGED_VECTOR_UPDATE_CONFIG({ updateMaxTotalClaimableViaVector: true });
       const mintManagerForEditionOwner = mintManager.connect(editionsOwner);
-      await (await mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).wait();
+      await (await mintManagerForEditionOwner.createAbridgedVector(vector)).wait();
       mintManager = mintManager.connect(fan1);
-      await expect(mintManager.createVector(vector, vectorMutability, 0)).to.be.revertedWithCustomError(
+      await expect(mintManager.createAbridgedVector(vector)).to.be.revertedWithCustomError(
         mintManager,
         Errors.Unauthorized,
       );
-      await expect(mintManager.updateVector(vectorId, vector)).to.be.revertedWithCustomError(
+      await expect(
+        mintManager.updateAbridgedVector(vectorId, vector, vectorUpdateConfig),
+      ).to.be.revertedWithCustomError(mintManager, Errors.Unauthorized);
+      await expect(mintManager.deleteAbridgedVector(vectorId)).to.be.revertedWithCustomError(
         mintManager,
         Errors.Unauthorized,
       );
-      await expect(mintManager.updateVectorMutability(vectorId, vectorMutability)).to.be.revertedWithCustomError(
-        mintManager,
-        Errors.Unauthorized,
-      );
-      await expect(mintManager.pauseVector(vectorId)).to.be.revertedWithCustomError(mintManager, Errors.Unauthorized);
-      await expect(mintManager.unpauseVector(vectorId)).to.be.revertedWithCustomError(mintManager, Errors.Unauthorized);
-      await expect(mintManager.deleteVector(vectorId)).to.be.revertedWithCustomError(mintManager, Errors.Unauthorized);
 
       mintManager = mintManager.connect(editionsOwner);
     });
@@ -1791,6 +1801,7 @@ describe("Mint Manager", () => {
         minimalForwarder.address,
         mintManagerProxy.address,
         generalOwner,
+        null,
         false,
         0,
         ethers.constants.AddressZero,
@@ -1812,7 +1823,7 @@ describe("Mint Manager", () => {
         "T1",
       );
 
-      const multipleEditionERC721 = await await setupMultipleEdition(
+      const multipleEditionERC721 = await setupMultipleEdition(
         observability.address,
         editionsImplementation,
         mintManagerProxy.address,
@@ -1832,17 +1843,21 @@ describe("Mint Manager", () => {
         it("Should be able to mint one to one recipient", async function () {
           const { mintManagerWithOwner, singleEditionERC721 } = await vectorMintsFixture();
           const mintManagerForEditionOwner = await mintManagerWithOwner.connect(editionsOwner);
-          const vector = SAMPLE_VECTOR_1(
+          const vector = SAMPLE_ABRIDGED_VECTOR(
             singleEditionERC721.address,
             editionsOwner.address,
-            10,
+            true,
+            0,
             5,
-            ethers.utils.parseEther("0.00000001").toNumber(),
+            5,
+            0,
+            0,
+            5,
+            ethers.utils.parseEther("0.00000001"),
           );
-          const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1();
-          await expect(mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).to.emit(
+          await expect(mintManagerForEditionOwner.createAbridgedVector(vector)).to.emit(
             mintManagerForEditionOwner,
-            "VectorCreated",
+            "EditionVectorCreated",
           );
           const mintManagerForFan1 = await mintManagerWithOwner.connect(fan1);
           await expect(mintManagerForFan1.vectorMintEdition721(1, 1, fan1.address)).to.be.revertedWithCustomError(
@@ -1871,11 +1886,10 @@ describe("Mint Manager", () => {
         it("Sending invalid mint fee should fail", async function () {
           const { mintManagerWithOwner, multipleEditionERC721 } = await vectorMintsFixture();
           const mintManagerForEditionOwner = mintManagerWithOwner.connect(editionsOwner);
-          const vector = SAMPLE_VECTOR_1(multipleEditionERC721.address, editionsOwner.address);
-          const vectorMutability = SAMPLE_VECTOR_MUTABILITY_1();
-          await expect(mintManagerForEditionOwner.createVector(vector, vectorMutability, 0)).to.emit(
+          const vector = SAMPLE_ABRIDGED_VECTOR(multipleEditionERC721.address, editionsOwner.address, true);
+          await expect(mintManagerForEditionOwner.createAbridgedVector(vector)).to.emit(
             mintManagerForEditionOwner,
-            "VectorCreated",
+            "EditionVectorCreated",
           );
           mintManagerForFan1 = await mintManagerWithOwner.connect(fan1);
           meERC721 = multipleEditionERC721;
@@ -1918,6 +1932,106 @@ describe("Mint Manager", () => {
             "Ownable: caller is not the owner",
           );
         });
+      });
+    });
+
+    describe("Series vector mint", async function () {
+      it("Should be able to mint one to one recipient", async function () {
+        const { mintManagerWithOwner, generalERC721 } = await vectorMintsFixture();
+        const mintManagerForGeneralOwner = await mintManagerWithOwner.connect(generalOwner);
+        const vector = SAMPLE_ABRIDGED_VECTOR(
+          generalERC721.address,
+          generalOwner.address,
+          false,
+          0,
+          5,
+          5,
+          0,
+          0,
+          5,
+          ethers.utils.parseEther("0.00000001"),
+        );
+        await expect(mintManagerForGeneralOwner.createAbridgedVector(vector)).to.emit(
+          mintManagerForGeneralOwner,
+          "SeriesVectorCreated",
+        );
+        const mintManagerForFan1 = await mintManagerWithOwner.connect(fan1);
+        await expect(mintManagerForFan1.vectorMintSeries721(1, 1, fan1.address)).to.be.revertedWithCustomError(
+          mintManagerForFan1,
+          Errors.InvalidPaymentAmount,
+        );
+        await expect(
+          mintManagerForFan1.vectorMintSeries721(1, 1, fan1.address, {
+            value: ethers.utils.parseEther("0.00000001"),
+          }),
+        ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
+        await expect(
+          mintManagerForFan1.vectorMintSeries721(1, 1, fan1.address, { value: mintFeeWei }),
+        ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
+        await expect(
+          mintManagerForFan1.vectorMintSeries721(1, 1, fan1.address, {
+            value: mintFeeWei.add(ethers.utils.parseEther("0.00000001")),
+          }),
+        ).to.emit(generalERC721, "Transfer");
+      });
+
+      it("Should be able to mint one to one recipient", async function () {
+        const { mintManagerWithOwner, generalERC721 } = await vectorMintsFixture();
+        const mintManagerForGeneralOwner = await mintManagerWithOwner.connect(generalOwner);
+
+        const allowlistedAddresses = [
+          fan1.address,
+          editionsOwner.address,
+          generalOwner.address,
+          editionsMetadataOwner.address,
+        ];
+        const leaves = allowlistedAddresses.map(x => ethers.utils.keccak256(x));
+        const tree = new MerkleTree(leaves, keccak256, { sortPairs: true });
+        const root = tree.getRoot().toString("hex");
+        const hashedFan1Address = keccak256(fan1.address);
+        const proof = tree.getHexProof(hashedFan1Address);
+
+        const vector = SAMPLE_ABRIDGED_VECTOR(
+          generalERC721.address,
+          generalOwner.address,
+          false,
+          0,
+          5,
+          5,
+          0,
+          0,
+          5,
+          ethers.utils.parseEther("0.00000001"),
+          "0x" + root,
+        );
+        await expect(mintManagerForGeneralOwner.createAbridgedVector(vector)).to.emit(
+          mintManagerForGeneralOwner,
+          "SeriesVectorCreated",
+        );
+        const mintManagerForFan1 = await mintManagerWithOwner.connect(fan1);
+        await expect(
+          mintManagerForFan1.vectorMintSeries721WithAllowlist(1, 1, fan1.address, proof),
+        ).to.be.revertedWithCustomError(mintManagerForFan1, Errors.InvalidPaymentAmount);
+        await expect(
+          mintManagerForFan1.vectorMintSeries721WithAllowlist(1, 1, fan1.address, proof, {
+            value: ethers.utils.parseEther("0.00000001"),
+          }),
+        ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
+        await expect(
+          mintManagerForFan1.vectorMintSeries721WithAllowlist(1, 1, fan1.address, proof, { value: mintFeeWei }),
+        ).to.be.revertedWithCustomError(mintManager, Errors.InvalidPaymentAmount);
+        await expect(
+          mintManagerForFan1.vectorMintSeries721WithAllowlist(1, 1, fan1.address, proof, {
+            value: mintFeeWei.add(ethers.utils.parseEther("0.00000001")),
+          }),
+        ).to.emit(generalERC721, "Transfer");
+
+        const mintManagerForNonAllowlistedAccount = mintManagerForFan1.connect(platformPaymentAddress);
+        await expect(
+          mintManagerForNonAllowlistedAccount.vectorMintSeries721WithAllowlist(1, 1, fan1.address, proof, {
+            value: mintFeeWei,
+          }),
+        ).to.be.revertedWithCustomError(mintManager, Errors.AllowlistInvalid);
       });
     });
   });

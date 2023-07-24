@@ -12,8 +12,9 @@ import "./interfaces/IEditionCollection.sol";
 import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
 import "./interfaces/IERC721EditionMint.sol";
-import "./MarketplaceFilterer/MarketplaceFilterer.sol";
+import "./MarketplaceFilterer/MarketplaceFiltererAbridged.sol";
 import "./erc721a/ERC721AUpgradeable.sol";
+import "../mint/interfaces/IAbridgedMintVector.sol";
 
 /**
  * @title ERC721 Editions
@@ -26,7 +27,7 @@ contract ERC721Editions is
     IERC721EditionMint,
     ERC721Base,
     ERC721AUpgradeable,
-    MarketplaceFilterer
+    MarketplaceFiltererAbridged
 {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -141,17 +142,64 @@ contract ERC721Editions is
      * @param _editionSize Size of the Edition
      * @param _editionTokenManager Edition's token manager
      * @param editionRoyalty Edition royalty object for contract (optional)
+     * @param mintVectorData Mint vector data
+     * @ param mintManager
+     * @ param paymentRecipient
+     * @ param startTimestamp
+     * @ param endTimestamp
+     * @ param pricePerToken
+     * @ param tokenLimitPerTx
+     * @ param maxTotalClaimableViaVector
+     * @ param maxUserClaimableViaVector
+     * @ param allowlistRoot
      * @notice Used to create a new Edition within the Collection
      */
     function createEdition(
         bytes memory _editionInfo,
         uint256 _editionSize,
         address _editionTokenManager,
-        IRoyaltyManager.Royalty memory editionRoyalty
+        IRoyaltyManager.Royalty memory editionRoyalty,
+        bytes calldata mintVectorData
     ) external onlyOwner nonReentrant returns (uint256) {
         uint256 editionId = _createEdition(_editionInfo, _editionSize, _editionTokenManager);
         if (editionRoyalty.recipientAddress != address(0)) {
             _royalties[editionId] = editionRoyalty;
+        }
+
+        if (mintVectorData.length > 0) {
+            (
+                address mintManager,
+                address paymentRecipient,
+                uint48 startTimestamp,
+                uint48 endTimestamp,
+                uint192 pricePerToken,
+                uint48 tokenLimitPerTx,
+                uint48 maxTotalClaimableViaVector,
+                uint48 maxUserClaimableViaVector,
+                bytes32 allowlistRoot
+            ) = abi.decode(
+                    mintVectorData,
+                    (address, address, uint48, uint48, uint192, uint48, uint48, uint48, bytes32)
+                );
+
+            IAbridgedMintVector(mintManager).createAbridgedVector(
+                IAbridgedMintVector.AbridgedVectorData(
+                    uint160(address(this)),
+                    startTimestamp,
+                    endTimestamp,
+                    uint160(paymentRecipient),
+                    maxTotalClaimableViaVector,
+                    0,
+                    0,
+                    tokenLimitPerTx,
+                    maxUserClaimableViaVector,
+                    pricePerToken,
+                    uint48(editionId), // cast down
+                    true,
+                    false,
+                    allowlistRoot
+                )
+            );
         }
 
         return editionId;
@@ -329,43 +377,6 @@ contract ERC721Editions is
     }
 
     /**
-     * @notice See {IERC721-transferFrom}. Overrides default behaviour to check associated tokenManager.
-     */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) public payable virtual override onlyAllowedOperator(from) {
-        ERC721AUpgradeable.transferFrom(from, to, tokenId);
-
-        address _manager = tokenManagerByTokenId(tokenId);
-        if (_manager != address(0) && IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)) {
-            IPostTransfer(_manager).postTransferFrom(_msgSender(), from, to, tokenId);
-        }
-
-        observability.emitTransfer(from, to, tokenId);
-    }
-
-    /**
-     * @notice See {IERC721-safeTransferFrom}. Overrides default behaviour to check associated tokenManager.
-     */
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId,
-        bytes memory data
-    ) public payable virtual override onlyAllowedOperator(from) {
-        ERC721AUpgradeable.safeTransferFrom(from, to, tokenId, data);
-
-        address _manager = tokenManagerByTokenId(tokenId);
-        if (_manager != address(0) && IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)) {
-            IPostTransfer(_manager).postSafeTransferFrom(_msgSender(), from, to, tokenId, data);
-        }
-
-        observability.emitTransfer(from, to, tokenId);
-    }
-
-    /**
      * @notice See {IERC721-setApprovalForAll}.
      *         Overrides default behaviour to check MarketplaceFilterer allowed operators.
      */
@@ -534,6 +545,30 @@ contract ERC721Editions is
     }
 
     /**
+     * @notice Hook called after transfers
+     * @param from Account token is being transferred from
+     * @param to Account token is being transferred to
+     * @param tokenId ID of token being transferred
+     */
+    function _afterTokenTransfers(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal override {
+        address msgSender = _msgSender();
+        if (from != msgSender) {
+            _checkFilterOperator(msgSender);
+        }
+
+        address _manager = tokenManagerByTokenId(tokenId);
+        if (_manager != address(0) && IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)) {
+            IPostTransfer(_manager).postSafeTransferFrom(msgSender, from, to, tokenId, "");
+        }
+
+        observability.emitTransfer(from, to, tokenId);
+    }
+
+    /**
      * @notice Get ID of a token's edition
      */
     function _getEditionId(uint256 tokenId) internal view returns (uint256) {
@@ -573,7 +608,11 @@ contract ERC721Editions is
     /**
      * @dev For more efficient reverts.
      */
-    function _revert(bytes4 errorSelector) internal pure override(ERC721AUpgradeable, ERC721Base, MarketplaceFilterer) {
+    function _revert(bytes4 errorSelector)
+        internal
+        pure
+        override(ERC721AUpgradeable, ERC721Base, MarketplaceFiltererAbridged)
+    {
         ERC721AUpgradeable._revert(errorSelector);
     }
 

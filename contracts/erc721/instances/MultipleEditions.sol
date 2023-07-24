@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
+import "../../auction/interfaces/IAuctionManager.sol";
+import "../../royaltyManager/interfaces/IRoyaltyManager.sol";
+import "../../mint/interfaces/IAbridgedMintVector.sol";
 import "@openzeppelin/contracts/proxy/Proxy.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/StorageSlot.sol";
-import "../../auction/interfaces/IAuctionManager.sol";
-import "../../royaltyManager/interfaces/IRoyaltyManager.sol";
 
 /**
  * @notice Instance of MultipleEditions contract (multiple fixed size editions)
@@ -36,6 +37,16 @@ contract MultipleEditions is Proxy {
      * @ param auctionCurrency Auction currency
      * @ param auctionPaymentRecipient Auction payment recipient
      * @ param auctionEndTime Auction end time
+     * @param mintVectorData Mint vector data
+     * @ param mintManager
+     * @ param paymentRecipient
+     * @ param startTimestamp
+     * @ param endTimestamp
+     * @ param pricePerToken
+     * @ param tokenLimitPerTx
+     * @ param maxTotalClaimableViaVector
+     * @ param maxUserClaimableViaVector
+     * @ param allowlistRoot
      */
     constructor(
         address implementation_,
@@ -44,7 +55,8 @@ contract MultipleEditions is Proxy {
         uint256 editionSize,
         address _editionTokenManager,
         IRoyaltyManager.Royalty memory editionRoyalty,
-        bytes memory auctionData
+        bytes memory auctionData,
+        bytes memory mintVectorData
     ) {
         assert(_IMPLEMENTATION_SLOT == bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1));
         StorageSlot.getAddressSlot(_IMPLEMENTATION_SLOT).value = implementation_;
@@ -55,11 +67,12 @@ contract MultipleEditions is Proxy {
             Address.functionDelegateCall(
                 implementation_,
                 abi.encodeWithSignature(
-                    "createEdition(bytes,uint256,address,(address,uint16))",
+                    "createEdition(bytes,uint256,address,(address,uint16),bytes)",
                     _editionInfo,
                     editionSize,
                     _editionTokenManager,
-                    editionRoyalty
+                    editionRoyalty,
+                    mintVectorData
                 )
             );
         }
@@ -76,26 +89,28 @@ contract MultipleEditions is Proxy {
                 uint256 auctionEndTime
             ) = abi.decode(auctionData, (address, bytes32, address, address, uint256));
 
-            IAuctionManager.EnglishAuction memory auction = IAuctionManager.EnglishAuction(
-                address(this),
-                auctionCurrency,
-                msg.sender,
-                auctionPaymentRecipient,
-                auctionEndTime,
-                0,
-                true,
-                IAuctionManager.AuctionState.LIVE_ON_CHAIN
-            );
-
             // edition id guaranteed to be = 0
-            IAuctionManager(auctionManagerAddress).createAuctionForNewEdition(auctionId, auction, 0);
+            IAuctionManager(auctionManagerAddress).createAuctionForNewEdition(
+                auctionId,
+                IAuctionManager.EnglishAuction(
+                    address(this),
+                    auctionCurrency,
+                    msg.sender,
+                    auctionPaymentRecipient,
+                    auctionEndTime,
+                    0,
+                    true,
+                    IAuctionManager.AuctionState.LIVE_ON_CHAIN
+                ),
+                0
+            );
         }
     }
 
     /**
      * @notice Return the contract type
      */
-    function contractType() external view returns (string memory) {
+    function standard() external pure returns (string memory) {
         return "MultipleEditions";
     }
 

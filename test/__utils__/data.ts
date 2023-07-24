@@ -1,3 +1,4 @@
+import { BigNumber } from "@ethersproject/contracts/node_modules/@ethersproject/bignumber";
 import { ethers } from "hardhat";
 
 export const SAMPLE_VECTOR_1 = (
@@ -25,6 +26,72 @@ export const SAMPLE_VECTOR_1 = (
     totalClaimedViaVector: 0,
     allowlistRoot: ethers.utils.formatBytes32String(allowlistRoot),
     paused,
+  };
+};
+
+export const SAMPLE_ABRIDGED_VECTOR = (
+  contractAddress: string,
+  paymentRecipient: string,
+  editionBasedCollection: boolean,
+  editionId: number = 0,
+  maxTotalClaimableViaVector: number = 0,
+  maxUserClaimableViaVector: number = 0,
+  startTimestamp: number = 0,
+  endTimestamp: number = 0,
+  tokenLimitPerTx: number = 0,
+  pricePerToken: BigNumber = ethers.utils.parseEther("0"),
+  allowlistRoot: string = ethers.constants.HashZero,
+  requireDirectEOA: boolean = false,
+) => {
+  return {
+    contractAddress,
+    currency: ethers.constants.AddressZero,
+    totalClaimedViaVector: 0,
+    startTimestamp,
+    endTimestamp,
+    paymentRecipient,
+    maxTotalClaimableViaVector,
+    tokenLimitPerTx,
+    maxUserClaimableViaVector,
+    pricePerToken,
+    editionId,
+    editionBasedCollection,
+    requireDirectEOA,
+    allowlistRoot,
+  };
+};
+
+export const SAMPLE_ABRIDGED_VECTOR_UPDATE_CONFIG = ({
+  updateMaxTotalClaimableViaVector,
+  updateStartTimestamp,
+  updateEndTimestamp,
+  updatePaymentRecipient,
+  updateTokenLimitPerTx,
+  updateMaxUserClaimableViaVector,
+  updatePricePerToken,
+  updateAllowlistRoot,
+  updatedRequireDirectEOA,
+}: {
+  updateMaxTotalClaimableViaVector?: boolean;
+  updateStartTimestamp?: boolean;
+  updateEndTimestamp?: boolean;
+  updatePaymentRecipient?: boolean;
+  updateTokenLimitPerTx?: boolean;
+  updateMaxUserClaimableViaVector?: boolean;
+  updatePricePerToken?: boolean;
+  updateAllowlistRoot?: boolean;
+  updatedRequireDirectEOA?: boolean;
+}) => {
+  return {
+    updateStartTimestamp: updateStartTimestamp ? 1 : 0,
+    updateEndTimestamp: updateEndTimestamp ? 1 : 0,
+    updatePaymentRecipient: updatePaymentRecipient ? 1 : 0,
+    updateMaxTotalClaimableViaVector: updateMaxTotalClaimableViaVector ? 1 : 0,
+    updateTokenLimitPerTx: updateTokenLimitPerTx ? 1 : 0,
+    updateMaxUserClaimableViaVector: updateMaxUserClaimableViaVector ? 1 : 0,
+    updatePricePerToken: updatePricePerToken ? 1 : 0,
+    updateAllowlistRoot: updateAllowlistRoot ? 1 : 0,
+    updatedRequireDirectEOA: updatedRequireDirectEOA ? 1 : 0,
   };
 };
 

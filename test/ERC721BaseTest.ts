@@ -296,6 +296,7 @@ describe("ERC721 Base functionality", () => {
             trustedForwarder.address,
             emr.address,
             editionsOwner,
+            null,
             ownerOnlyTokenManager.address,
           );
 
@@ -463,7 +464,7 @@ describe("ERC721 Base functionality", () => {
 
           // mint some tokens to test royalties
           await expect(
-            editions.createEdition(defaultEditionInfo, 4, ethers.constants.AddressZero, zeroRoyalty),
+            editions.createEdition(defaultEditionInfo, 4, ethers.constants.AddressZero, zeroRoyalty, "0x"),
           ).to.emit(editions, "EditionCreated");
 
           await expect(editions.registerMinter(editionsOwner.address)).to.emit(editions, "MinterRegistrationChanged");
@@ -516,11 +517,11 @@ describe("ERC721 Base functionality", () => {
 
           // mint some tokens to test royalties
           await expect(
-            editions.createEdition(defaultEditionInfo, 1, ethers.constants.AddressZero, zeroRoyalty),
+            editions.createEdition(defaultEditionInfo, 1, ethers.constants.AddressZero, zeroRoyalty, "0x"),
           ).to.emit(editions, "EditionCreated");
 
           await expect(
-            editions.createEdition(defaultEditionInfo, 1, ethers.constants.AddressZero, zeroRoyalty),
+            editions.createEdition(defaultEditionInfo, 1, ethers.constants.AddressZero, zeroRoyalty, "0x"),
           ).to.emit(editions, "EditionCreated");
 
           await expect(editions.registerMinter(editionsOwner.address)).to.emit(editions, "MinterRegistrationChanged");
@@ -567,7 +568,7 @@ describe("ERC721 Base functionality", () => {
 
           // mint some tokens to test royalties
           await expect(
-            editions.createEdition(defaultEditionInfo, 2, ethers.constants.AddressZero, zeroRoyalty),
+            editions.createEdition(defaultEditionInfo, 2, ethers.constants.AddressZero, zeroRoyalty, "0x"),
           ).to.emit(editions, "EditionCreated");
 
           await expect(editions.registerMinter(editionsOwner.address)).to.emit(editions, "MinterRegistrationChanged");
@@ -712,6 +713,7 @@ describe("ERC721 Base functionality", () => {
             100,
             "name",
             "SYM",
+            null,
             false,
             ownerOnlyTokenManager.address,
           );

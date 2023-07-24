@@ -22,7 +22,7 @@ abstract contract MarketplaceFilterer is OwnableUpgradeable {
     /**
      * @notice MarketplaceFilterer Registry (CORI)
      */
-    address public constant MARKETPLACE_FILTERER_REGISTRY = 0x000000000000AAeB6D7670E522A718067333cd4E;
+    address public constant MARKETPLACE_FILTERER_REGISTRY = address(0x000000000000AAeB6D7670E522A718067333cd4E);
 
     /**
      * @notice Default subscription to register collection with on CORI Marketplace filterer registry

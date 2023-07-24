@@ -12,7 +12,7 @@ import {
   Observability,
 } from "../types";
 import { Errors } from "./__utils__/data";
-import { setupEditions, setupSystem } from "./__utils__/helpers";
+import { DEFAULT_ONCHAIN_MINT_VECTOR, setupEditions, setupMultipleEdition, setupSystem } from "./__utils__/helpers";
 import { getValidClaimTimestamp } from "./__utils__/mint";
 
 const defaultEditionInfo = ethers.utils.defaultAbiCoder.encode(
@@ -96,19 +96,19 @@ describe("ERC721Editions functionality", () => {
   describe("createEdition", async function () {
     it("Edition size has to be greater than 0", async function () {
       await expect(
-        editions.createEdition(defaultEditionInfo, 0, ethers.constants.AddressZero, zeroRoyalty),
+        editions.createEdition(defaultEditionInfo, 0, ethers.constants.AddressZero, zeroRoyalty, "0x"),
       ).to.be.revertedWithCustomError(editions, Errors.InvalidSize);
     });
 
     it("Non-owner cannot create edition", async function () {
       editions = editions.connect(fan1);
       await expect(
-        editions.createEdition(defaultEditionInfo, 100, ethers.constants.AddressZero, zeroRoyalty),
+        editions.createEdition(defaultEditionInfo, 100, ethers.constants.AddressZero, zeroRoyalty, "0x"),
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
     it("Can create edition without passing in edition token manager", async function () {
-      await expect(editions.createEdition(defaultEditionInfo, 100, ethers.constants.AddressZero, zeroRoyalty))
+      await expect(editions.createEdition(defaultEditionInfo, 100, ethers.constants.AddressZero, zeroRoyalty, "0x"))
         .to.emit(editions, "EditionCreated")
         .withArgs(0, 100, ethers.constants.AddressZero);
 
@@ -116,7 +116,7 @@ describe("ERC721Editions functionality", () => {
     });
 
     it("Can create edition with passing in edition token manager", async function () {
-      await expect(editions.createEdition(defaultEditionInfo, 100, lockedTokenManager.address, zeroRoyalty))
+      await expect(editions.createEdition(defaultEditionInfo, 100, lockedTokenManager.address, zeroRoyalty, "0x"))
         .to.emit(editions, "EditionCreated")
         .withArgs(0, 100, lockedTokenManager.address);
 
@@ -189,7 +189,7 @@ describe("ERC721Editions functionality", () => {
 
   describe("Minting", function () {
     beforeEach(async function () {
-      await expect(editions.createEdition(defaultEditionInfo, 5, lockedTokenManager.address, zeroRoyalty))
+      await expect(editions.createEdition(defaultEditionInfo, 5, lockedTokenManager.address, zeroRoyalty, "0x"))
         .to.emit(editions, "EditionCreated")
         .withArgs(0, 5, lockedTokenManager.address);
 
@@ -578,7 +578,7 @@ describe("ERC721Editions functionality", () => {
           .to.emit(editions, "Transfer")
           .withArgs(ethers.constants.AddressZero, fan1.address, 4);
 
-        await expect(editions.createEdition(defaultEditionInfo, 10, lockedTokenManager.address, zeroRoyalty))
+        await expect(editions.createEdition(defaultEditionInfo, 10, lockedTokenManager.address, zeroRoyalty, "0x"))
           .to.emit(editions, "EditionCreated")
           .withArgs(1, 10, lockedTokenManager.address);
 
@@ -651,5 +651,99 @@ describe("ERC721Editions functionality", () => {
         );
       });
     });
+  });
+
+  it("Can deploy with direct mint and create editions with direct mints after", async function () {
+    editions = await setupMultipleEdition(
+      observability.address,
+      editionsImplementation,
+      mintManager.address,
+      auctionManager.address,
+      trustedForwarder.address,
+      emr.address,
+      editionsOwner,
+      100,
+      "name",
+      "symbol",
+      { ...DEFAULT_ONCHAIN_MINT_VECTOR, maxUserClaimableViaVector: 2 },
+    );
+
+    const defaultEditionInfo = ethers.utils.defaultAbiCoder.encode(
+      ["tuple(string, string, string, string, string, string)"],
+      [["name", "description", "imageUrl", "animationUrl", "externalUrl", "attributes"]],
+    );
+
+    expect((await mintManager.getAbridgedVector(1)).slice(0, 14)).to.deep.equal([
+      editions.address,
+      DEFAULT_ONCHAIN_MINT_VECTOR.startTimestamp,
+      DEFAULT_ONCHAIN_MINT_VECTOR.endTimestamp,
+      editionsOwner.address,
+      DEFAULT_ONCHAIN_MINT_VECTOR.maxTotalClaimableViaVector,
+      0,
+      ethers.constants.AddressZero,
+      DEFAULT_ONCHAIN_MINT_VECTOR.tokenLimitPerTx,
+      2,
+      DEFAULT_ONCHAIN_MINT_VECTOR.pricePerToken,
+      DEFAULT_ONCHAIN_MINT_VECTOR.editionId ?? 0,
+      true,
+      false,
+      DEFAULT_ONCHAIN_MINT_VECTOR.allowlistRoot,
+    ]);
+
+    await expect(
+      mintManager.vectorMintEdition721(1, 2, editionsOwner.address, {
+        value: ethers.utils.parseEther("0.0008").mul(2),
+      }),
+    )
+      .to.emit(mintManager, "NumTokenMint")
+      .withArgs(ethers.utils.hexZeroPad(ethers.utils.hexlify(1), 32), editions.address, true, 2);
+
+    await expect(mintManager.vectorMintEdition721(1, 1, editionsOwner.address)).to.be.revertedWithCustomError(
+      mintManager,
+      "OnchainVectorMintGuardFailed",
+    );
+
+    expect(await mintManager.userClaims(1, editionsOwner.address)).to.equal(2);
+
+    const mintVectorData = ethers.utils.defaultAbiCoder.encode(
+      ["address", "address", "uint48", "uint48", "uint192", "uint48", "uint48", "uint48", "bytes32"],
+      [
+        mintManager.address,
+        editionsOwner.address,
+        DEFAULT_ONCHAIN_MINT_VECTOR.startTimestamp,
+        DEFAULT_ONCHAIN_MINT_VECTOR.endTimestamp,
+        DEFAULT_ONCHAIN_MINT_VECTOR.pricePerToken,
+        DEFAULT_ONCHAIN_MINT_VECTOR.tokenLimitPerTx,
+        1,
+        DEFAULT_ONCHAIN_MINT_VECTOR.maxUserClaimableViaVector,
+        ethers.constants.HashZero,
+      ],
+    );
+    await expect(
+      editions.createEdition(
+        defaultEditionInfo,
+        10,
+        ethers.constants.AddressZero,
+        { recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 0 },
+        mintVectorData,
+      ),
+    )
+      .to.emit(editions, "EditionCreated")
+      .withArgs(1, 10, ethers.constants.AddressZero)
+      .to.emit(mintManager, "EditionVectorCreated")
+      .withArgs(2, 1, editions.address);
+
+    await expect(
+      mintManager.vectorMintEdition721(2, 1, editionsOwner.address, { value: ethers.utils.parseEther("0.0008") }),
+    )
+      .to.emit(mintManager, "NumTokenMint")
+      .withArgs(ethers.utils.hexZeroPad(ethers.utils.hexlify(2), 32), editions.address, true, 1);
+
+    await expect(mintManager.vectorMintEdition721(2, 1, editionsOwner.address)).to.be.revertedWithCustomError(
+      mintManager,
+      "OnchainVectorMintGuardFailed",
+    );
+
+    expect(await mintManager.userClaims(2, editionsOwner.address)).to.equal(1);
   });
 });

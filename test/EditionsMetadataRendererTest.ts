@@ -87,6 +87,7 @@ describe("Editions Metadata Renderer", () => {
       minimalForwarder.address,
       emr.address,
       generalOwner,
+      null,
       false,
       0,
       ethers.constants.AddressZero,

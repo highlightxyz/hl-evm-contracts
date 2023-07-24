@@ -166,12 +166,6 @@ describe("Auction Manager", () => {
         "id3",
         endTime3,
         editionsOwner.address,
-        true,
-      );
-
-      expect(await editions.operatorFiltererRegistry()).to.equal(ethers.constants.AddressZero);
-      expect(await editionsWithMarketplaceFilterer.operatorFiltererRegistry()).to.equal(
-        "0x000000000000AAeB6D7670E522A718067333cd4E",
       );
 
       const res = await auctionManager.getFullAuctionsData([

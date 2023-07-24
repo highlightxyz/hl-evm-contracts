@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
+import "../../mint/interfaces/IAbridgedMintVector.sol";
 import "@openzeppelin/contracts/proxy/Proxy.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/StorageSlot.sol";
@@ -26,11 +27,22 @@ contract GenerativeSeries is Proxy {
      * @ param newBaseURI Base URI for contract
      * @ param _limitSupply Initial limit supply
      * @ param useMarketplaceFiltererRegistry Denotes whether to use marketplace filterer registry
+     * @param mintVectorData Mint vector data
+     * @ param mintManager
+     * @ param paymentRecipient
+     * @ param startTimestamp
+     * @ param endTimestamp
+     * @ param pricePerToken
+     * @ param tokenLimitPerTx
+     * @ param maxTotalClaimableViaVector
+     * @ param maxUserClaimableViaVector
+     * @ param allowlistRoot
      * @param _observability Observability contract address
      */
     constructor(
         address implementation_,
         bytes memory initializeData,
+        bytes memory mintVectorData,
         address _observability
     ) {
         assert(_IMPLEMENTATION_SLOT == bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1));
@@ -39,12 +51,48 @@ contract GenerativeSeries is Proxy {
             implementation_,
             abi.encodeWithSignature("initialize(bytes,address)", initializeData, _observability)
         );
+
+        if (mintVectorData.length > 0) {
+            (
+                address mintManager,
+                address paymentRecipient,
+                uint48 startTimestamp,
+                uint48 endTimestamp,
+                uint192 pricePerToken,
+                uint48 tokenLimitPerTx,
+                uint48 maxTotalClaimableViaVector,
+                uint48 maxUserClaimableViaVector,
+                bytes32 allowlistRoot
+            ) = abi.decode(
+                    mintVectorData,
+                    (address, address, uint48, uint48, uint192, uint48, uint48, uint48, bytes32)
+                );
+
+            IAbridgedMintVector(mintManager).createAbridgedVector(
+                IAbridgedMintVector.AbridgedVectorData(
+                    uint160(address(this)),
+                    startTimestamp,
+                    endTimestamp,
+                    uint160(paymentRecipient),
+                    maxTotalClaimableViaVector,
+                    0,
+                    0,
+                    tokenLimitPerTx,
+                    maxUserClaimableViaVector,
+                    pricePerToken,
+                    0,
+                    false,
+                    false,
+                    allowlistRoot
+                )
+            );
+        }
     }
 
     /**
      * @notice Return the contract type
      */
-    function contractType() external view returns (string memory) {
+    function standard() external pure returns (string memory) {
         return "GenerativeSeries";
     }
 
