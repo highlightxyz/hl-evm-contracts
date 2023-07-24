@@ -1,4 +1,9 @@
 import { parseEther } from "@ethersproject/units";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import {
   AuctionManager,
   ERC721Editions,
@@ -9,11 +14,6 @@ import {
   Observability,
 } from "../types";
 import { signGatedBid } from "./__utils__/auction";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import { hourFromNow, setupEtherAuctionWithNewToken, setupSystem } from "./__utils__/helpers";
 
 describe("Auction Manager", () => {

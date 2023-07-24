@@ -1,3 +1,7 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import {
   AuctionManager,
   ERC721Editions,
@@ -8,9 +12,6 @@ import {
   MintManager,
   Observability,
 } from "../types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
 
 /* eslint-disable prefer-const */
 import {

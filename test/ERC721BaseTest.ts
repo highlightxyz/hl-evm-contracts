@@ -1,3 +1,7 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import {
   AuctionManager,
   ERC721Editions,
@@ -13,10 +17,6 @@ import {
   OwnerOnlyRoyaltyManager,
   OwnerOnlyTokenManager,
 } from "../types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import { Errors } from "./__utils__/data";
 import { setupEditions, setupSingleEdition, setupSystem } from "./__utils__/helpers";
 

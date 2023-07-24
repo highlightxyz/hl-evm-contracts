@@ -1,3 +1,7 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import {
   AuctionManager,
   ERC721Editions,
@@ -8,16 +12,7 @@ import {
   MintManager,
   Observability,
 } from "../types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
-import {
-  setupEditions,
-  setupGeneral,
-  setupSingleEdition,
-  setupSystem,
-} from "./__utils__/helpers";
+import { setupEditions, setupGeneral, setupSingleEdition, setupSystem } from "./__utils__/helpers";
 import { sign2771MetaTxRequest } from "./__utils__/metaTx";
 
 // have to import this here to not import OpenZeppelin minimal forwarder

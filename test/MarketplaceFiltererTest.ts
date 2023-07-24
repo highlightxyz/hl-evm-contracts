@@ -1,3 +1,7 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+
 import {
   AuctionManager,
   ERC721Editions,
@@ -9,17 +13,8 @@ import {
   Observability,
   OperatorFilterRegistry,
 } from "../types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-
 import { Errors } from "./__utils__/data";
-import {
-  setupMultipleEdition,
-  setupMultipleEditionDFS,
-  setupSingleEdition,
-  setupSystem,
-} from "./__utils__/helpers";
+import { setupMultipleEdition, setupMultipleEditionDFS, setupSingleEdition, setupSystem } from "./__utils__/helpers";
 
 describe("MarketplaceFilterer functionality", () => {
   let singleEdition: ERC721SingleEdition;

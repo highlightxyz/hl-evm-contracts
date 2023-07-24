@@ -1,3 +1,9 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { ethers } from "hardhat";
+import keccak256 from "keccak256";
+import { MerkleTree } from "merkletreejs";
+
 import {
   AuctionManager,
   ERC721Editions,
@@ -9,13 +15,6 @@ import {
   MintManager__factory,
   Observability,
 } from "../types";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
-import { ethers } from "hardhat";
-import keccak256 from "keccak256";
-import { MerkleTree } from "merkletreejs";
-
-import { getExpiredClaimTimestamp, getValidClaimTimestamp } from "./__utils__/mint";
 import { SAMPLE_ABRIDGED_VECTOR, SAMPLE_ABRIDGED_VECTOR_UPDATE_CONFIG } from "./__utils__/data";
 import { Errors } from "./__utils__/data";
 import {
@@ -27,6 +26,7 @@ import {
   setupSingleEdition,
   setupSystem,
 } from "./__utils__/helpers";
+import { getExpiredClaimTimestamp, getValidClaimTimestamp } from "./__utils__/mint";
 
 //TODO: Gated MetaTx Tests
 //TODO: Variations of Vector Mint
