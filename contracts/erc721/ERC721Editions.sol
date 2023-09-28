@@ -13,7 +13,7 @@ import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
 import "./interfaces/IERC721EditionMint.sol";
 import "./MarketplaceFilterer/MarketplaceFiltererAbridged.sol";
-import "./erc721a/ERC721AUpgradeable.sol";
+import "../utils/ERC721/ERC721Upgradeable.sol";
 import "../mint/interfaces/IAbridgedMintVector.sol";
 
 /**
@@ -26,7 +26,7 @@ contract ERC721Editions is
     IERC721Editions,
     IERC721EditionMint,
     ERC721Base,
-    ERC721AUpgradeable,
+    ERC721Upgradeable,
     MarketplaceFiltererAbridged
 {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -251,12 +251,10 @@ contract ERC721Editions is
     /**
      * @notice See {IERC721EditionMint-mintOneToRecipient}
      */
-    function mintOneToRecipient(uint256 editionId, address recipient)
-        external
-        onlyMinter
-        nonReentrant
-        returns (uint256)
-    {
+    function mintOneToRecipient(
+        uint256 editionId,
+        address recipient
+    ) external onlyMinter nonReentrant returns (uint256) {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -288,12 +286,10 @@ contract ERC721Editions is
     /**
      * @notice See {IERC721EditionMint-mintOneToRecipients}
      */
-    function mintOneToRecipients(uint256 editionId, address[] memory recipients)
-        external
-        onlyMinter
-        nonReentrant
-        returns (uint256)
-    {
+    function mintOneToRecipients(
+        uint256 editionId,
+        address[] memory recipients
+    ) external onlyMinter nonReentrant returns (uint256) {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -352,11 +348,9 @@ contract ERC721Editions is
     /**
      * @notice See {IEditionCollection-getEditionsDetailsAndUri}
      */
-    function getEditionsDetailsAndUri(uint256[] calldata editionIds)
-        external
-        view
-        returns (EditionDetails[] memory, string[] memory)
-    {
+    function getEditionsDetailsAndUri(
+        uint256[] calldata editionIds
+    ) external view returns (EditionDetails[] memory, string[] memory) {
         uint256 editionIdsLength = editionIds.length;
         EditionDetails[] memory editionsDetails = new EditionDetails[](editionIdsLength);
         string[] memory uris = new string[](editionIdsLength);
@@ -377,6 +371,18 @@ contract ERC721Editions is
     }
 
     /**
+     * @notice Total supply of NFTs on the Editions
+     * @dev Won't handle burned (temporary)
+     */
+    function totalSupply() external view returns (uint256) {
+        uint256 supply = 0;
+        for (uint256 i = 0; i < editionCurrentSupply.length; i++) {
+            supply += editionCurrentSupply[i];
+        }
+        return supply;
+    }
+
+    /**
      * @notice See {IERC721-setApprovalForAll}.
      *         Overrides default behaviour to check MarketplaceFilterer allowed operators.
      */
@@ -388,7 +394,7 @@ contract ERC721Editions is
      * @notice See {IERC721-approve}.
      *         Overrides default behaviour to check MarketplaceFilterer allowed operators.
      */
-    function approve(address operator, uint256 tokenId) public payable override onlyAllowedOperatorApproval(operator) {
+    function approve(address operator, uint256 tokenId) public override onlyAllowedOperatorApproval(operator) {
         super.approve(operator, tokenId);
     }
 
@@ -420,13 +426,10 @@ contract ERC721Editions is
      * @param _tokenId Token id
      * @param _salePrice Sale price of token
      */
-    function royaltyInfo(uint256 _tokenId, uint256 _salePrice)
-        public
-        view
-        virtual
-        override
-        returns (address receiver, uint256 royaltyAmount)
-    {
+    function royaltyInfo(
+        uint256 _tokenId,
+        uint256 _salePrice
+    ) public view virtual override returns (address receiver, uint256 royaltyAmount) {
         return ERC721Base.royaltyInfo(_getEditionId(_tokenId), _salePrice);
     }
 
@@ -473,16 +476,12 @@ contract ERC721Editions is
     }
 
     /**
-     * @notice See {IERC721AUpgradeable-supportsInterface}.
+     * @notice See {IERC721Upgradeable-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(IERC165Upgradeable, ERC721AUpgradeable)
-        returns (bool)
-    {
-        return ERC721AUpgradeable.supportsInterface(interfaceId);
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(IERC165Upgradeable, ERC721Upgradeable) returns (bool) {
+        return ERC721Upgradeable.supportsInterface(interfaceId);
     }
 
     /**
@@ -491,11 +490,7 @@ contract ERC721Editions is
      * @param recipients Recipients of newly minted tokens
      * @param _amount Amount minted to each recipient
      */
-    function _mintEditions(
-        uint256 editionId,
-        address[] memory recipients,
-        uint256 _amount
-    ) internal returns (uint256) {
+    function _mintEditions(uint256 editionId, address[] memory recipients, uint256 _amount) internal returns (uint256) {
         uint256 recipientsLength = recipients.length;
 
         uint256 maxSupply = editionMaxSupply[editionId];
@@ -508,8 +503,10 @@ contract ERC721Editions is
         }
 
         for (uint256 i = 0; i < recipientsLength; i++) {
-            _mint(recipients[i], _amount, currentSupply + startId, 0);
-            currentSupply += _amount;
+            for (uint256 j = 0; j < _amount; j++) {
+                _mint(recipients[i], startId + currentSupply);
+                currentSupply += 1;
+            }
         }
 
         editionCurrentSupply[editionId] = currentSupply;
@@ -523,11 +520,7 @@ contract ERC721Editions is
      * @param recipient Recipient of newly minted token
      * @param _amount Amount minted to recipient
      */
-    function _mintEditionsToOne(
-        uint256 editionId,
-        address recipient,
-        uint256 _amount
-    ) internal returns (uint256) {
+    function _mintEditionsToOne(uint256 editionId, address recipient, uint256 _amount) internal returns (uint256) {
         uint256 maxSupply = editionMaxSupply[editionId];
         uint256 currentSupply = editionCurrentSupply[editionId];
         uint256 startId = editionStartId[editionId];
@@ -537,7 +530,10 @@ contract ERC721Editions is
             _revert(SoldOut.selector);
         }
 
-        _mint(recipient, _amount, startId + currentSupply, 0);
+        for (uint256 j = 0; j < _amount; j++) {
+            _mint(recipient, startId + currentSupply);
+            currentSupply += 1;
+        }
 
         editionCurrentSupply[editionId] = endAt;
 
@@ -550,11 +546,7 @@ contract ERC721Editions is
      * @param to Account token is being transferred to
      * @param tokenId ID of token being transferred
      */
-    function _afterTokenTransfers(
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal override {
+    function _afterTokenTransfers(address from, address to, uint256 tokenId) internal override {
         address msgSender = _msgSender();
         if (from != msgSender) {
             _checkFilterOperator(msgSender);
@@ -608,12 +600,10 @@ contract ERC721Editions is
     /**
      * @dev For more efficient reverts.
      */
-    function _revert(bytes4 errorSelector)
-        internal
-        pure
-        override(ERC721AUpgradeable, ERC721Base, MarketplaceFiltererAbridged)
-    {
-        ERC721AUpgradeable._revert(errorSelector);
+    function _revert(
+        bytes4 errorSelector
+    ) internal pure override(ERC721Upgradeable, ERC721Base, MarketplaceFiltererAbridged) {
+        ERC721Upgradeable._revert(errorSelector);
     }
 
     /**
@@ -644,9 +634,10 @@ contract ERC721Editions is
         address _observability
     ) private {
         __ERC721Base_initialize(creator, defaultRoyalty, _defaultTokenManager);
-        __ERC721A_init(_name, _symbol);
+        __ERC721_init(_name, _symbol);
         __ERC2771ContextUpgradeable__init__(trustedForwarder);
-        __MarketplaceFilterer__init__(useMarketplaceFiltererRegistry);
+        // deprecate but keep input for backwards-compatibility:
+        // __MarketplaceFilterer__init__(useMarketplaceFiltererRegistry);
         _metadataRendererAddress = metadataRendererAddress;
         uint256 initialMintersLength = initialMinters.length;
         for (uint256 i = 0; i < initialMintersLength; i++) {

@@ -4,23 +4,12 @@
 
 pragma solidity 0.8.10;
 
-/** solhint-disable */
+/* solhint-disable */
 
 /**
  * @dev Interface of ERC721A.
- * @ author Chiru Labs, slightly modified by ishan@highlight.xyz
  */
 interface IERC721AUpgradeable {
-    /**
-     * Quantity to mint is too large
-     */
-    error QuantityTooLarge();
-
-    /**
-     * Cannot re-mint token
-     */
-    error TokenMintedAlready();
-
     /**
      * The caller must own the token or be an approved operator.
      */
@@ -178,21 +167,12 @@ interface IERC721AUpgradeable {
      *
      * Emits a {Transfer} event.
      */
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId,
-        bytes calldata data
-    ) external payable;
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata data) external payable;
 
     /**
      * @dev Equivalent to `safeTransferFrom(from, to, tokenId, '')`.
      */
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) external payable;
+    function safeTransferFrom(address from, address to, uint256 tokenId) external payable;
 
     /**
      * @dev Transfers `tokenId` from `from` to `to`.
@@ -210,11 +190,7 @@ interface IERC721AUpgradeable {
      *
      * Emits a {Transfer} event.
      */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) external payable;
+    function transferFrom(address from, address to, uint256 tokenId) external payable;
 
     /**
      * @dev Gives permission to `to` to transfer `tokenId` token to another account.

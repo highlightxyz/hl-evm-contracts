@@ -6,14 +6,14 @@ import "../metadata/MetadataEncryption.sol";
 import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
 import "./interfaces/IERC721GeneralMint.sol";
-import "./ERC721GeneralBase.sol";
+import "./ERC721GeneralSequenceBase.sol";
 
 /**
- * @title Generalized ERC721
+ * @title Generalized ERC721 that expects tokenIds to increment in a monotonically increasing sequence
  * @author highlight.xyz
  * @notice Generalized NFT smart contract
  */
-contract ERC721General is MetadataEncryption, ERC721GeneralBase {
+contract ERC721GeneralSequence is MetadataEncryption, ERC721GeneralSequenceBase {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /**
@@ -157,7 +157,7 @@ contract ERC721General is MetadataEncryption, ERC721GeneralBase {
         __ERC721URIStorage_init();
         __ERC721Base_initialize(creator, defaultRoyalty, _defaultTokenManager);
         __ERC2771ContextUpgradeable__init__(trustedForwarder);
-        __ERC721_init(_name, _symbol);
+        __ERC721A_init(_name, _symbol);
         // deprecate but keep input for backwards-compatibility:
         // __MarketplaceFilterer__init__(useMarketplaceFiltererRegistry);
         _minters.add(initialMinter);

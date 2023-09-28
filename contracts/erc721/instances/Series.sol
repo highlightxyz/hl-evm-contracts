@@ -38,11 +38,7 @@ contract Series is Proxy {
      * @ param maxUserClaimableViaVector
      * @ param allowlistRoot
      */
-    constructor(
-        address implementation_,
-        bytes memory initializeData,
-        bytes memory mintVectorData
-    ) {
+    constructor(address implementation_, bytes memory initializeData, bytes memory mintVectorData) {
         assert(_IMPLEMENTATION_SLOT == bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1));
         StorageSlot.getAddressSlot(_IMPLEMENTATION_SLOT).value = implementation_;
         Address.functionDelegateCall(implementation_, abi.encodeWithSignature("initialize(bytes)", initializeData));

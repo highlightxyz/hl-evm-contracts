@@ -14,7 +14,7 @@ contract LockedTokenManager is ITokenManager, InterfaceSupportTokenManager {
      */
     function canUpdateMetadata(
         address sender,
-        uint256, /* id */
+        uint256 /* id */,
         bytes calldata /* newTokenUri */
     ) external view override returns (bool) {
         return Ownable(msg.sender).owner() == sender;
@@ -24,8 +24,8 @@ contract LockedTokenManager is ITokenManager, InterfaceSupportTokenManager {
      * @notice See {ITokenManager-canSwap}
      */
     function canSwap(
-        address, /* sender */
-        uint256, /* id */
+        address /* sender */,
+        uint256 /* id */,
         address /* newTokenManager */
     ) external pure override returns (bool) {
         return false;
@@ -34,10 +34,7 @@ contract LockedTokenManager is ITokenManager, InterfaceSupportTokenManager {
     /**
      * @notice See {ITokenManager-canRemoveItself}
      */
-    function canRemoveItself(
-        address, /* sender */
-        uint256 /* id */
-    ) external pure override returns (bool) {
+    function canRemoveItself(address /* sender */, uint256 /* id */) external pure override returns (bool) {
         return false;
     }
 }

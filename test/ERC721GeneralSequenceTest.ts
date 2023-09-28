@@ -13,7 +13,7 @@ import {
 import { Errors } from "./__utils__/data";
 import { DEFAULT_ONCHAIN_MINT_VECTOR, setupGeneral, setupSystem } from "./__utils__/helpers";
 
-describe("ERC721General functionality", () => {
+describe("ERC721GeneralSequence functionality", () => {
   let totalLockedTokenManager: TotalLockedTokenManager;
   let ownerOnlyTokenManager: OwnerOnlyTokenManager;
   let general: ERC721General;
@@ -36,7 +36,7 @@ describe("ERC721General functionality", () => {
       mintManagerProxy,
       minimalForwarder,
       observability: observabilityInstance,
-      generalImplementationAddress,
+      generalSequenceImplementationAddress,
     } = await setupSystem(
       platformPaymentAddress.address,
       mintManagerOwner.address,
@@ -48,7 +48,7 @@ describe("ERC721General functionality", () => {
     mintManager = mintManagerProxy;
     trustedForwarder = minimalForwarder;
     observability = observabilityInstance;
-    generalImplementation = generalImplementationAddress;
+    generalImplementation = generalSequenceImplementationAddress;
 
     totalLockedTokenManager = await (await ethers.getContractFactory("TotalLockedTokenManager")).deploy();
     ownerOnlyTokenManager = await (await ethers.getContractFactory("OwnerOnlyTokenManager")).deploy();
@@ -537,99 +537,6 @@ describe("ERC721General functionality", () => {
 
           await expect(general.setLimitSupply(8)).to.emit(general, "LimitSupplySet").withArgs(8);
         }
-      });
-    });
-
-    describe("mintSpecificTokenToOneRecipient", function () {
-      it("Non minter cannot call", async function () {
-        general = general.connect(fan1);
-
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 1)).to.be.revertedWithCustomError(
-          general,
-          Errors.NotMinter,
-        );
-      });
-
-      it("Cannot mint if mint frozen", async function () {
-        await expect(general.freezeMints()).to.emit(general, "MintsFrozen");
-
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 2)).to.be.revertedWithCustomError(
-          general,
-          Errors.MintFrozen,
-        );
-      });
-
-      it("Cannot mint token not in range, but can mint in-range ones", async function () {
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 1)).to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 2)).to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 5)).to.be.revertedWithCustomError(
-          general,
-          Errors.TokenNotInRange,
-        );
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 3)).to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 4)).to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 5)).to.be.revertedWithCustomError(
-          general,
-          Errors.TokenNotInRange,
-        );
-
-        await expect(general.setLimitSupply(0)).to.emit(general, "LimitSupplySet").withArgs(0);
-
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 5)).to.emit(general, "Transfer");
-      });
-
-      it("Cannot mint already minted token", async function () {
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 4)).to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokenToOneRecipient(fan1.address, 4)).to.be.revertedWith(
-          "ERC721: token minted",
-        );
-      });
-    });
-
-    describe("mintSpecificTokensToOneRecipient", function () {
-      it("Non minter cannot call", async function () {
-        general = general.connect(fan1);
-
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [1, 2])).to.be.revertedWithCustomError(
-          general,
-          Errors.NotMinter,
-        );
-      });
-
-      it("Cannot mint if mint frozen", async function () {
-        await expect(general.freezeMints()).to.emit(general, "MintsFrozen");
-
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [2])).to.be.revertedWithCustomError(
-          general,
-          Errors.MintFrozen,
-        );
-      });
-
-      it("Cannot mint token not in range, but can mint in-range ones", async function () {
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [1, 4]))
-          .to.emit(general, "Transfer")
-          .to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [2, 5])).to.be.revertedWithCustomError(
-          general,
-          Errors.TokenNotInRange,
-        );
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [2, 3]))
-          .to.emit(general, "Transfer")
-          .to.emit(general, "Transfer");
-
-        await expect(general.setLimitSupply(0)).to.emit(general, "LimitSupplySet").withArgs(0);
-
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [6, 19, 20]))
-          .to.emit(general, "Transfer")
-          .to.emit(general, "Transfer")
-          .to.emit(general, "Transfer");
-      });
-
-      it("Cannot mint already minted token", async function () {
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [4, 1])).to.emit(general, "Transfer");
-        await expect(general.mintSpecificTokensToOneRecipient(fan1.address, [2, 1, 3])).to.be.revertedWith(
-          "ERC721: token minted",
-        );
       });
     });
 

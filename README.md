@@ -23,7 +23,7 @@ cp .sample.env .env
 fill in Infura API keys
 
 ```
-yarn install
+yarn reinstall
 ```
 
 # Boot up local network

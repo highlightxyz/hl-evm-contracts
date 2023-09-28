@@ -18,7 +18,7 @@ import {
   OwnerOnlyTokenManager,
 } from "../types";
 import { Errors } from "./__utils__/data";
-import { setupEditions, setupSingleEdition, setupSystem } from "./__utils__/helpers";
+import { DEFAULT_ONCHAIN_MINT_VECTOR, setupEditions, setupSingleEdition, setupSystem } from "./__utils__/helpers";
 
 enum BaseEvents {
   MinterRegistrationChanged = "MinterRegistrationChanged",

@@ -144,12 +144,10 @@ contract ERC721SingleEdition is
     /**
      * @notice See {IERC721EditionMint-mintOneToRecipient}
      */
-    function mintOneToRecipient(uint256 editionId, address recipient)
-        external
-        onlyMinter
-        nonReentrant
-        returns (uint256)
-    {
+    function mintOneToRecipient(
+        uint256 editionId,
+        address recipient
+    ) external onlyMinter nonReentrant returns (uint256) {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -181,12 +179,10 @@ contract ERC721SingleEdition is
     /**
      * @notice See {IERC721EditionMint-mintOneToRecipients}
      */
-    function mintOneToRecipients(uint256 editionId, address[] memory recipients)
-        external
-        onlyMinter
-        nonReentrant
-        returns (uint256)
-    {
+    function mintOneToRecipients(
+        uint256 editionId,
+        address[] memory recipients
+    ) external onlyMinter nonReentrant returns (uint256) {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -253,11 +249,9 @@ contract ERC721SingleEdition is
     /**
      * @notice See {IEditionCollection-getEditionsDetailsAndUri}
      */
-    function getEditionsDetailsAndUri(uint256[] calldata editionIds)
-        external
-        view
-        returns (EditionDetails[] memory, string[] memory)
-    {
+    function getEditionsDetailsAndUri(
+        uint256[] calldata editionIds
+    ) external view returns (EditionDetails[] memory, string[] memory) {
         if (editionIds.length != 1) {
             _revert(InvalidEditionIdsLength.selector);
         }
@@ -276,11 +270,7 @@ contract ERC721SingleEdition is
     /**
      * @notice See {IERC721-transferFrom}. Overrides default behaviour to check associated tokenManager.
      */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) public payable virtual override onlyAllowedOperator(from) {
+    function transferFrom(address from, address to, uint256 tokenId) public payable override {
         ERC721AUpgradeable.transferFrom(from, to, tokenId);
 
         address _manager = defaultManager;
@@ -294,12 +284,7 @@ contract ERC721SingleEdition is
     /**
      * @notice See {IERC721-safeTransferFrom}. Overrides default behaviour to check associated tokenManager.
      */
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId,
-        bytes memory data
-    ) public payable virtual override onlyAllowedOperator(from) {
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public payable override {
         ERC721AUpgradeable.safeTransferFrom(from, to, tokenId, data);
 
         address _manager = defaultManager;
@@ -308,22 +293,6 @@ contract ERC721SingleEdition is
         }
 
         observability.emitTransfer(from, to, tokenId);
-    }
-
-    /**
-     * @notice See {IERC721-setApprovalForAll}.
-     *         Overrides default behaviour to check MarketplaceFilterer allowed operators.
-     */
-    function setApprovalForAll(address operator, bool approved) public override onlyAllowedOperatorApproval(operator) {
-        super.setApprovalForAll(operator, approved);
-    }
-
-    /**
-     * @notice See {IERC721-approve}.
-     *         Overrides default behaviour to check MarketplaceFilterer allowed operators.
-     */
-    function approve(address operator, uint256 tokenId) public payable override onlyAllowedOperatorApproval(operator) {
-        super.approve(operator, tokenId);
     }
 
     /**
@@ -354,7 +323,7 @@ contract ERC721SingleEdition is
      * @param _salePrice Sale price of token
      */
     function royaltyInfo(
-        uint256, /* _tokenId */
+        uint256 /* _tokenId */,
         uint256 _salePrice
     ) public view virtual override returns (address receiver, uint256 royaltyAmount) {
         return ERC721MinimizedBase.royaltyInfo(0, _salePrice);
@@ -395,13 +364,9 @@ contract ERC721SingleEdition is
     /**
      * @notice See {IERC721AUpgradeable-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(IERC165Upgradeable, ERC721AUpgradeable)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(IERC165Upgradeable, ERC721AUpgradeable) returns (bool) {
         return ERC721AUpgradeable.supportsInterface(interfaceId);
     }
 
@@ -421,11 +386,10 @@ contract ERC721SingleEdition is
         }
 
         for (uint256 i = 0; i < recipientsLength; i++) {
-            _mint(recipients[i], _amount, tempCurrent, tempCurrent);
-            tempCurrent += _amount;
+            _mint(recipients[i], _amount);
         }
 
-        return tempCurrent;
+        return endAt;
     }
 
     /**
@@ -441,9 +405,9 @@ contract ERC721SingleEdition is
             _revert(SoldOut.selector);
         }
 
-        _mint(recipient, _amount, tempCurrent, tempCurrent);
+        _mint(recipient, _amount);
 
-        return endAt + 1;
+        return endAt;
     }
 
     /**
@@ -463,11 +427,9 @@ contract ERC721SingleEdition is
     /**
      * @dev For more efficient reverts.
      */
-    function _revert(bytes4 errorSelector)
-        internal
-        pure
-        override(ERC721AUpgradeable, ERC721MinimizedBase, MarketplaceFilterer)
-    {
+    function _revert(
+        bytes4 errorSelector
+    ) internal pure override(ERC721AUpgradeable, ERC721MinimizedBase, MarketplaceFilterer) {
         ERC721AUpgradeable._revert(errorSelector);
     }
 
@@ -503,7 +465,8 @@ contract ERC721SingleEdition is
         __ERC721MinimizedBase_initialize(creator, defaultRoyalty, _defaultTokenManager);
         __ERC721A_init(_name, _symbol);
         __ERC2771ContextUpgradeable__init__(trustedForwarder);
-        __MarketplaceFilterer__init__(useMarketplaceFiltererRegistry);
+        // deprecate but keep input for backwards-compatibility:
+        // __MarketplaceFilterer__init__(useMarketplaceFiltererRegistry);
         size = _size;
         _metadataRendererAddress = metadataRendererAddress;
         IMetadataRenderer(metadataRendererAddress).initializeMetadata(_editionInfo);

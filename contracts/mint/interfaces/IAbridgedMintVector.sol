@@ -71,6 +71,8 @@ interface IAbridgedMintVector {
      * @param updateMaxUserClaimableViaVector If 1, update maxUserClaimableViaVector
      * @param updatePricePerToken If 1, update pricePerToken
      * @param updateAllowlistRoot If 1, update allowlistRoot
+     * @param updateRequireDirectEOA If 1, update requireDirectEOA
+     * @param updateMetadata If 1, update MintVector metadata
      */
     struct UpdateAbridgedVectorConfig {
         uint16 updateStartTimestamp;
@@ -79,9 +81,10 @@ interface IAbridgedMintVector {
         uint16 updateMaxTotalClaimableViaVector;
         uint16 updateTokenLimitPerTx;
         uint16 updateMaxUserClaimableViaVector;
-        uint16 updatePricePerToken;
+        uint8 updatePricePerToken;
         uint8 updateAllowlistRoot;
-        uint8 updatedRequireDirectEOA;
+        uint8 updateRequireDirectEOA;
+        uint8 updateMetadata;
     }
 
     /**
@@ -95,11 +98,15 @@ interface IAbridgedMintVector {
      * @param vectorId ID of vector to update
      * @param _newVector New vector details
      * @param updateConfig Number encoding what fields to update
+     * @param pause Pause / unpause vector
+     * @param flexibleData Flexible data in vector metadata
      */
     function updateAbridgedVector(
         uint256 vectorId,
         AbridgedVector calldata _newVector,
-        UpdateAbridgedVectorConfig calldata updateConfig
+        UpdateAbridgedVectorConfig calldata updateConfig,
+        bool pause,
+        uint128 flexibleData
     ) external;
 
     /**
@@ -109,8 +116,22 @@ interface IAbridgedMintVector {
     function deleteAbridgedVector(uint256 vectorId) external;
 
     /**
+     * @notice Pauses or unpauses an on-chain mint vector
+     * @param vectorId ID of abridged vector to pause
+     * @param pause True to pause, False to unpause
+     * @param flexibleData Flexible data that can be interpreted differently
+     */
+    function setAbridgedVectorMetadata(uint256 vectorId, bool pause, uint128 flexibleData) external;
+
+    /**
      * @notice Get on-chain abridged vector
      * @param vectorId ID of abridged vector to get
      */
-    function getAbridgedVector(uint256 vectorId) external returns (AbridgedVector memory);
+    function getAbridgedVector(uint256 vectorId) external view returns (AbridgedVector memory);
+
+    /**
+     * @notice Get on-chain abridged vector metadata
+     * @param vectorId ID of abridged vector to get
+     */
+    function getAbridgedVectorMetadata(uint256 vectorId) external view returns (bool, uint128);
 }

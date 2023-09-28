@@ -3,6 +3,12 @@ import { BigNumber } from "ethers";
 import { ethers } from "hardhat";
 
 import {
+  signGatedMint,
+  signGatedMintWithMetaTxPacket,
+  signGatedSeriesMint,
+  signWETHMetaTxRequest,
+} from "./mint";
+import {
   AuctionManager__factory,
   ERC721Editions,
   ERC721EditionsDFS,
@@ -22,7 +28,6 @@ import {
   NativeMetaTransaction__factory,
   Observability__factory,
 } from "../../types";
-import { signGatedMint, signGatedMintWithMetaTxPacket, signGatedSeriesMint, signWETHMetaTxRequest } from "./mint";
 
 export type OnchainMintVectorParams = {
   startTimestamp: number;
@@ -936,8 +941,13 @@ export async function setupSystem(
   const general = await generalFactory.deploy();
   await general.deployed();
 
+  //Deploy GeneralSequence
+  const generalSequenceFactory = await ethers.getContractFactory("ERC721GeneralSequence");
+  const generalSequence = await generalSequenceFactory.deploy();
+  await generalSequence.deployed();
+
   //Deploy Editions
-  const generativeFactory = await ethers.getContractFactory("ERC721Generative");
+  const generativeFactory = await ethers.getContractFactory("ERC721GenerativeOnchain");
   const generative = await generativeFactory.deploy();
   await generative.deployed();
 
@@ -952,6 +962,7 @@ export async function setupSystem(
     minimalForwarder: MinimalForwarder__factory.connect(minimalForwarder.address, signer),
     observability: Observability__factory.connect(observability.address, signer),
     generalImplementationAddress: general.address,
+    generalSequenceImplementationAddress: generalSequence.address,
     generativeImplementationAddress: generative.address,
     editionsImplementationAddress: editions.address,
     editionsDFSImplementationAddress: editionsDFS.address,

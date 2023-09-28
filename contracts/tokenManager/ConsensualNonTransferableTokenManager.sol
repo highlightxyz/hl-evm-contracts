@@ -22,7 +22,7 @@ contract ConsensualNonTransferableTokenManager is
      */
     function canUpdateMetadata(
         address sender,
-        uint256, /* id */
+        uint256 /* id */,
         bytes calldata /* newTokenUri */
     ) external view override returns (bool) {
         return Ownable(msg.sender).owner() == sender;
@@ -33,7 +33,7 @@ contract ConsensualNonTransferableTokenManager is
      */
     function canSwap(
         address sender,
-        uint256, /* id */
+        uint256 /* id */,
         address /* newTokenManager */
     ) external view override returns (bool) {
         return Ownable(msg.sender).owner() == sender;
@@ -42,10 +42,7 @@ contract ConsensualNonTransferableTokenManager is
     /**
      * @notice See {ITokenManager-canRemoveItself}
      */
-    function canRemoveItself(
-        address sender,
-        uint256 /* id */
-    ) external view override returns (bool) {
+    function canRemoveItself(address sender, uint256 /* id */) external view override returns (bool) {
         return Ownable(msg.sender).owner() == sender;
     }
 
@@ -53,10 +50,10 @@ contract ConsensualNonTransferableTokenManager is
      * @notice See {IPostTransfer-postSafeTransferFrom}
      */
     function postSafeTransferFrom(
-        address, /* operator */
-        address, /* from */
+        address /* operator */,
+        address /* from */,
         address to,
-        uint256, /* id */
+        uint256 /* id */,
         bytes memory /* data */
     ) external view override {
         if (to != Ownable(msg.sender).owner()) {
@@ -68,8 +65,8 @@ contract ConsensualNonTransferableTokenManager is
      * @notice See {IPostTransfer-postTransferFrom}
      */
     function postTransferFrom(
-        address, /* operator */
-        address, /* from */
+        address /* operator */,
+        address /* from */,
         address to,
         uint256 /* id */
     ) external view override {
@@ -82,24 +79,16 @@ contract ConsensualNonTransferableTokenManager is
     /**
      * @notice See {IPostBurn-postBurn}
      */
-    function postBurn(
-        address, /* operator */
-        address, /* sender */
-        uint256 /* id */
-    ) external pure override {}
+    function postBurn(address /* operator */, address /* sender */, uint256 /* id */) external pure override {}
 
     /* solhint-enable no-empty-blocks */
 
     /**
      * @notice See {IERC165-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(InterfaceSupportTokenManager)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(InterfaceSupportTokenManager) returns (bool) {
         return
             interfaceId == type(IPostTransfer).interfaceId ||
             interfaceId == type(IPostBurn).interfaceId ||

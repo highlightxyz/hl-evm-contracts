@@ -231,11 +231,9 @@ abstract contract ERC721MinimizedBase is
      * @notice Sets default royalty if royalty manager allows it
      * @param _royalty New default royalty
      */
-    function setDefaultRoyalty(IRoyaltyManager.Royalty calldata _royalty)
-        external
-        nonReentrant
-        royaltyValid(_royalty.royaltyPercentageBPS)
-    {
+    function setDefaultRoyalty(
+        IRoyaltyManager.Royalty calldata _royalty
+    ) external nonReentrant royaltyValid(_royalty.royaltyPercentageBPS) {
         address msgSender = _msgSender();
 
         address _royaltyManager = royaltyManager;
@@ -325,7 +323,7 @@ abstract contract ERC721MinimizedBase is
      * @param _salePrice Sale price of token
      */
     function royaltyInfo(
-        uint256, /* _tokenGroupingId */
+        uint256 /* _tokenGroupingId */,
         uint256 _salePrice
     ) public view virtual override returns (address receiver, uint256 royaltyAmount) {
         IRoyaltyManager.Royalty memory royalty = _defaultRoyalty;
@@ -338,9 +336,7 @@ abstract contract ERC721MinimizedBase is
      * @notice Returns the token manager for the id passed in.
      * @param // Token ID or Edition ID for Editions implementing contracts
      */
-    function tokenManager(
-        uint256 /* id */
-    ) public view returns (address manager) {
+    function tokenManager(uint256 /* id */) public view returns (address manager) {
         return defaultManager;
     }
 

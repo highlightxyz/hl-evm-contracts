@@ -36,8 +36,7 @@ interface IEditionCollection {
      * @notice Get the details and uris of a number of editions
      * @param editionIds List of editions to get info for
      */
-    function getEditionsDetailsAndUri(uint256[] calldata editionIds)
-        external
-        view
-        returns (EditionDetails[] memory, string[] memory uris);
+    function getEditionsDetailsAndUri(
+        uint256[] calldata editionIds
+    ) external view returns (EditionDetails[] memory, string[] memory uris);
 }

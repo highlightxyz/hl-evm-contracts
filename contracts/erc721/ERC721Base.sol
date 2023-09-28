@@ -216,10 +216,10 @@ abstract contract ERC721Base is
      * @param _ids Edition / token ids
      * @param _tokenManagers Token managers to set for tokens / editions
      */
-    function setGranularTokenManagers(uint256[] calldata _ids, address[] calldata _tokenManagers)
-        external
-        nonReentrant
-    {
+    function setGranularTokenManagers(
+        uint256[] calldata _ids,
+        address[] calldata _tokenManagers
+    ) external nonReentrant {
         address msgSender = _msgSender();
         address tempOwner = owner();
 
@@ -321,11 +321,9 @@ abstract contract ERC721Base is
      * @notice Sets default royalty if royalty manager allows it
      * @param _royalty New default royalty
      */
-    function setDefaultRoyalty(IRoyaltyManager.Royalty calldata _royalty)
-        external
-        nonReentrant
-        royaltyValid(_royalty.royaltyPercentageBPS)
-    {
+    function setDefaultRoyalty(
+        IRoyaltyManager.Royalty calldata _royalty
+    ) external nonReentrant royaltyValid(_royalty.royaltyPercentageBPS) {
         address msgSender = _msgSender();
 
         address _royaltyManager = royaltyManager;
@@ -350,10 +348,10 @@ abstract contract ERC721Base is
      * @param ids Token / edition ids
      * @param _newRoyalties New royalties for each token / edition
      */
-    function setGranularRoyalties(uint256[] calldata ids, IRoyaltyManager.Royalty[] calldata _newRoyalties)
-        external
-        nonReentrant
-    {
+    function setGranularRoyalties(
+        uint256[] calldata ids,
+        IRoyaltyManager.Royalty[] calldata _newRoyalties
+    ) external nonReentrant {
         address msgSender = _msgSender();
         address tempOwner = owner();
 
@@ -455,13 +453,10 @@ abstract contract ERC721Base is
      * @param _tokenGroupingId Token id if on general, and edition id if on editions
      * @param _salePrice Sale price of token
      */
-    function royaltyInfo(uint256 _tokenGroupingId, uint256 _salePrice)
-        public
-        view
-        virtual
-        override
-        returns (address receiver, uint256 royaltyAmount)
-    {
+    function royaltyInfo(
+        uint256 _tokenGroupingId,
+        uint256 _salePrice
+    ) public view virtual override returns (address receiver, uint256 royaltyAmount) {
         IRoyaltyManager.Royalty memory royalty = _royalties[_tokenGroupingId];
         if (royalty.recipientAddress == address(0)) {
             royalty = _defaultRoyalty;
@@ -499,7 +494,7 @@ abstract contract ERC721Base is
         __ReentrancyGuard_init();
         _transferOwnership(_creator);
 
-        if (_defaultRoyalty.recipientAddress != address(0)) {
+        if (defaultRoyalty.recipientAddress != address(0)) {
             _defaultRoyalty = defaultRoyalty;
         }
 

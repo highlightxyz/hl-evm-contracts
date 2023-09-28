@@ -6,20 +6,14 @@ import "../metadata/MetadataEncryption.sol";
 import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
 import "./interfaces/IERC721GeneralMint.sol";
-import "../utils/ERC721/ERC721URIStorageUpgradeable.sol";
-import "./MarketplaceFilterer/MarketplaceFiltererAbridged.sol";
+import "./erc721a/ERC721AURIStorageUpgradeable.sol";
 
 /**
  * @title Generalized Base ERC721
  * @author highlight.xyz
  * @notice Generalized Base NFT smart contract
  */
-abstract contract ERC721GeneralBase is
-    ERC721Base,
-    ERC721URIStorageUpgradeable,
-    IERC721GeneralMint,
-    MarketplaceFiltererAbridged
-{
+abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgradeable, IERC721GeneralMint {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /**
@@ -53,11 +47,6 @@ abstract contract ERC721GeneralBase is
     string public contractURI;
 
     /**
-     * @notice Total tokens minted
-     */
-    uint256 public supply;
-
-    /**
      * @notice Limit the supply to take advantage of over-promising in summation with multiple mint vectors
      */
     uint256 public limitSupply;
@@ -83,12 +72,10 @@ abstract contract ERC721GeneralBase is
             _revert(MintFrozen.selector);
         }
 
-        uint256 tempSupply = supply;
-        tempSupply++;
+        uint256 tempSupply = _nextTokenId();
         _requireLimitSupply(tempSupply);
 
-        _mint(recipient, tempSupply);
-        supply = tempSupply;
+        _mint(recipient, 1);
 
         return tempSupply;
     }
@@ -100,15 +87,11 @@ abstract contract ERC721GeneralBase is
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
-        uint256 tempSupply = supply; // cache
+        uint256 tempSupply = _nextTokenId() - 1; // cache
 
-        for (uint256 i = 0; i < amount; i++) {
-            tempSupply++;
-            _mint(recipient, tempSupply);
-        }
+        _mint(recipient, amount);
 
-        _requireLimitSupply(tempSupply);
-        supply = tempSupply;
+        _requireLimitSupply(tempSupply + amount);
     }
 
     /**
@@ -119,15 +102,13 @@ abstract contract ERC721GeneralBase is
             _revert(MintFrozen.selector);
         }
         uint256 recipientsLength = recipients.length;
-        uint256 tempSupply = supply; // cache
+        uint256 tempSupply = _nextTokenId() - 1; // cache
 
         for (uint256 i = 0; i < recipientsLength; i++) {
-            tempSupply++;
-            _mint(recipients[i], tempSupply);
+            _mint(recipients[i], 1);
         }
 
-        _requireLimitSupply(tempSupply);
-        supply = tempSupply;
+        _requireLimitSupply(tempSupply + recipientsLength);
     }
 
     /**
@@ -141,73 +122,30 @@ abstract contract ERC721GeneralBase is
             _revert(MintFrozen.selector);
         }
         uint256 recipientsLength = recipients.length;
-        uint256 tempSupply = supply; // cache
+        uint256 tempSupply = _nextTokenId() - 1; // cache
 
         for (uint256 i = 0; i < recipientsLength; i++) {
-            for (uint256 j = 0; j < amount; j++) {
-                tempSupply++;
-                _mint(recipients[i], tempSupply);
-            }
+            _mint(recipients[i], amount);
         }
 
-        _requireLimitSupply(tempSupply);
-        supply = tempSupply;
+        _requireLimitSupply(tempSupply + recipientsLength * amount);
     }
+
+    /* solhint-disable no-empty-blocks */
 
     /**
-     * @notice See {IERC721GeneralMint-mintSpecificTokenToOneRecipient}
+     * @notice Mint a chosen token id to a single recipient
+     * @dev Unavailable for ERC721GeneralSequenceBase, keep interface adhered for backwards compatiblity
      */
-    function mintSpecificTokenToOneRecipient(address recipient, uint256 tokenId) external onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
-
-        uint256 tempSupply = supply;
-        tempSupply++;
-
-        uint256 _limitSupply = limitSupply;
-        if (_limitSupply != 0) {
-            if (tokenId > _limitSupply) {
-                _revert(TokenNotInRange.selector);
-            }
-        }
-
-        _mint(recipient, tokenId);
-        supply = tempSupply;
-    }
+    function mintSpecificTokenToOneRecipient(address recipient, uint256 tokenId) external {}
 
     /**
-     * @notice See {IERC721GeneralMint-mintSpecificTokensToOneRecipient}
+     * @notice Mint chosen token ids to a single recipient
+     * @dev Unavailable for ERC721GeneralSequenceBase, keep interface adhered for backwards compatiblity
      */
-    function mintSpecificTokensToOneRecipient(
-        address recipient,
-        uint256[] calldata tokenIds
-    ) external onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
+    function mintSpecificTokensToOneRecipient(address recipient, uint256[] calldata tokenIds) external {}
 
-        uint256 tempSupply = supply;
-
-        uint256 tokenIdsLength = tokenIds.length;
-        uint256 _limitSupply = limitSupply;
-        if (_limitSupply == 0) {
-            // don't check that token id is within range, since _limitSupply being 0 implies unlimited range
-            for (uint256 i = 0; i < tokenIdsLength; i++) {
-                _mint(recipient, tokenIds[i]);
-                tempSupply++;
-            }
-        } else {
-            // check that token id is within range
-            for (uint256 i = 0; i < tokenIdsLength; i++) {
-                if (tokenIds[i] > _limitSupply) {
-                    _revert(TokenNotInRange.selector);
-                }
-                _mint(recipient, tokenIds[i]);
-                tempSupply++;
-            }
-        }
-    }
+    /* solhint-enable no-empty-blocks */
 
     /**
      * @notice Override base URI system for select tokens, with custom per-token metadata
@@ -283,30 +221,6 @@ abstract contract ERC721GeneralBase is
     }
 
     /**
-     * @notice Total supply of NFTs on the contract
-     * @dev Won't handle burned (temporary)
-     */
-    function totalSupply() external view returns (uint256) {
-        return supply;
-    }
-
-    /**
-     * @notice See {IERC721-setApprovalForAll}.
-     *         Overrides default behaviour to check MarketplaceFilterer allowed operators.
-     */
-    function setApprovalForAll(address operator, bool approved) public override onlyAllowedOperatorApproval(operator) {
-        super.setApprovalForAll(operator, approved);
-    }
-
-    /**
-     * @notice See {IERC721-approve}.
-     *         Overrides default behaviour to check MarketplaceFilterer allowed operators.
-     */
-    function approve(address operator, uint256 tokenId) public override onlyAllowedOperatorApproval(operator) {
-        super.approve(operator, tokenId);
-    }
-
-    /**
      * @notice See {IERC721-burn}. Overrides default behaviour to check associated tokenManager.
      */
     function burn(uint256 tokenId) public nonReentrant {
@@ -333,7 +247,7 @@ abstract contract ERC721GeneralBase is
      * @param tokenId ID of token to get uri for
      */
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
-        return ERC721URIStorageUpgradeable.tokenURI(tokenId);
+        return ERC721AURIStorageUpgradeable.tokenURI(tokenId);
     }
 
     /**
@@ -341,8 +255,8 @@ abstract contract ERC721GeneralBase is
      */
     function supportsInterface(
         bytes4 interfaceId
-    ) public view virtual override(IERC165Upgradeable, ERC721Upgradeable) returns (bool) {
-        return ERC721Upgradeable.supportsInterface(interfaceId);
+    ) public view virtual override(IERC165Upgradeable, ERC721AUpgradeable) returns (bool) {
+        return ERC721AUpgradeable.supportsInterface(interfaceId);
     }
 
     /**
@@ -352,14 +266,9 @@ abstract contract ERC721GeneralBase is
      * @param tokenId ID of token being transferred
      */
     function _afterTokenTransfers(address from, address to, uint256 tokenId) internal override {
-        address msgSender = _msgSender();
-        if (from != msgSender) {
-            _checkFilterOperator(msgSender);
-        }
-
         address _manager = tokenManager(tokenId);
         if (_manager != address(0) && IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)) {
-            IPostTransfer(_manager).postSafeTransferFrom(msgSender, from, to, tokenId, "");
+            IPostTransfer(_manager).postSafeTransferFrom(_msgSender(), from, to, tokenId, "");
         }
 
         observability.emitTransfer(from, to, tokenId);
@@ -382,10 +291,8 @@ abstract contract ERC721GeneralBase is
     /**
      * @dev For more efficient reverts.
      */
-    function _revert(
-        bytes4 errorSelector
-    ) internal pure virtual override(ERC721Upgradeable, ERC721Base, MarketplaceFiltererAbridged) {
-        ERC721Upgradeable._revert(errorSelector);
+    function _revert(bytes4 errorSelector) internal pure virtual override(ERC721AUpgradeable, ERC721Base) {
+        ERC721AUpgradeable._revert(errorSelector);
     }
 
     /**

@@ -3,17 +3,17 @@
 
 pragma solidity 0.8.10;
 
-import "./ERC721Upgradeable.sol";
+import "./ERC721AUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/StringsUpgradeable.sol";
 
 /**
- * @title Appending URI storage utilities onto template ERC721 contract
- * @author highlight.xyz and OpenZeppelin
+ * @title Appending URI storage utilities onto template ERC721A contract
+ * @author highlight.xyz, OpenZeppelin
  * @dev ERC721 token with storage based token URI management. OpenZeppelin template edited by Highlight
  */
 /* solhint-disable */
-abstract contract ERC721URIStorageUpgradeable is Initializable, ERC721Upgradeable {
+abstract contract ERC721AURIStorageUpgradeable is Initializable, ERC721AUpgradeable {
     /**
      * @notice Throw when token doesn't exist
      */
@@ -49,7 +49,7 @@ abstract contract ERC721URIStorageUpgradeable is Initializable, ERC721Upgradeabl
     string public baseURI;
 
     /**
-     @notice Emitted when base uri is set
+     * @notice Emitted when base uri is set
      * @param oldBaseUri Old base uri
      * @param newBaseURI New base uri
      */

@@ -1,18 +1,20 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.10;
 
-import "./ERC721Base.sol";
-import "../tokenManager/interfaces/IPostTransfer.sol";
-import "../tokenManager/interfaces/IPostBurn.sol";
-import "./interfaces/IERC721GeneralMint.sol";
-import "./ERC721GeneralSequenceBase.sol";
+import "../ERC721Base.sol";
+import "../../tokenManager/interfaces/IPostTransfer.sol";
+import "../../tokenManager/interfaces/IPostBurn.sol";
+import "../interfaces/IERC721GeneralMint.sol";
+import "../ERC721GeneralSequenceBase.sol";
+import "./OnchainFileStorage.sol";
 
 /**
  * @title Generative ERC721
+ * @dev Inherits from OnchainFileStorage for file handling
  * @author highlight.xyz
  * @notice Generative NFT smart contract
  */
-contract ERC721Generative is ERC721GeneralSequenceBase {
+contract ERC721GenerativeOnchain is ERC721GeneralSequenceBase, OnchainFileStorage {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /**
@@ -94,5 +96,33 @@ contract ERC721Generative is ERC721GeneralSequenceBase {
 
     function generativeCodeUri() external view returns (string memory) {
         return _generativeCodeURI;
+    }
+
+    /**
+     * @notice Used for meta-transactions
+     */
+    function _msgSender()
+        internal
+        view
+        override(ERC721GeneralSequenceBase, ContextUpgradeable)
+        returns (address sender)
+    {
+        return ERC721GeneralSequenceBase._msgSender();
+    }
+
+    /**
+     * @notice Used for meta-transactions
+     */
+    function _msgData() internal view override(ERC721GeneralSequenceBase, ContextUpgradeable) returns (bytes calldata) {
+        return ERC721GeneralSequenceBase._msgData();
+    }
+
+    /**
+     * @dev For more efficient reverts.
+     */
+    function _revert(
+        bytes4 errorSelector
+    ) internal pure virtual override(ERC721GeneralSequenceBase, OnchainFileStorage) {
+        ERC721GeneralSequenceBase._revert(errorSelector);
     }
 }
