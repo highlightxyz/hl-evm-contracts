@@ -4,7 +4,6 @@ import { ethers } from "hardhat";
 import keccak256 from "keccak256";
 import { MerkleTree } from "merkletreejs";
 
-import { getExpiredClaimTimestamp, getValidClaimTimestamp } from "./__utils__/mint";
 import {
   AuctionManager,
   ERC721Editions,
@@ -33,6 +32,7 @@ import {
   setupSingleEditionDFS,
   setupSystem,
 } from "./__utils__/helpers";
+import { getExpiredClaimTimestamp, getValidClaimTimestamp } from "./__utils__/mint";
 
 //TODO: Gated MetaTx Tests
 //TODO: Variations of Vector Mint

@@ -4,7 +4,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-import { signGatedBid } from "./__utils__/auction";
 import {
   AuctionManager,
   ERC721Editions,
@@ -14,6 +13,7 @@ import {
   MintManager,
   Observability,
 } from "../types";
+import { signGatedBid } from "./__utils__/auction";
 import { hourFromNow, setupEtherAuctionWithNewToken, setupSystem } from "./__utils__/helpers";
 
 describe("Auction Manager", () => {

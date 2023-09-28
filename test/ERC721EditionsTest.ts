@@ -2,7 +2,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-import { getValidClaimTimestamp } from "./__utils__/mint";
 import {
   AuctionManager,
   ERC721Editions,
@@ -14,6 +13,7 @@ import {
 } from "../types";
 import { Errors } from "./__utils__/data";
 import { DEFAULT_ONCHAIN_MINT_VECTOR, setupEditions, setupMultipleEdition, setupSystem } from "./__utils__/helpers";
+import { getValidClaimTimestamp } from "./__utils__/mint";
 
 const defaultEditionInfo = ethers.utils.defaultAbiCoder.encode(
   ["tuple(string, string, string, string, string, string)"],

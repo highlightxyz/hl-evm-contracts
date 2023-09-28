@@ -27,7 +27,7 @@ jobs:
           yarn config list
 
       - name: "Install the dependencies"
-        run: "yarn install --immutable"
+        run: "FIRST_INSTALL=true yarn install --immutable"
 
       - name: "Lint the code"
         run: "yarn lint"

@@ -3,12 +3,6 @@ import { BigNumber } from "ethers";
 import { ethers } from "hardhat";
 
 import {
-  signGatedMint,
-  signGatedMintWithMetaTxPacket,
-  signGatedSeriesMint,
-  signWETHMetaTxRequest,
-} from "./mint";
-import {
   AuctionManager__factory,
   ERC721Editions,
   ERC721EditionsDFS,
@@ -28,6 +22,7 @@ import {
   NativeMetaTransaction__factory,
   Observability__factory,
 } from "../../types";
+import { signGatedMint, signGatedMintWithMetaTxPacket, signGatedSeriesMint, signWETHMetaTxRequest } from "./mint";
 
 export type OnchainMintVectorParams = {
   startTimestamp: number;

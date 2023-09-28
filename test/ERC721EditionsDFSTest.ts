@@ -3,7 +3,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-import { getValidClaimTimestamp } from "./__utils__/mint";
 import {
   AuctionManager,
   ERC721EditionsDFS,
@@ -19,6 +18,7 @@ import {
   setupMultipleEditionDFS,
   setupSystem,
 } from "./__utils__/helpers";
+import { getValidClaimTimestamp } from "./__utils__/mint";
 
 describe("ERC721EditionsDFS functionality", () => {
   let lockedTokenManager: LockedTokenManager;
