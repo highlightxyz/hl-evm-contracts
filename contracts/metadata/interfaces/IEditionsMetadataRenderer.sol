@@ -30,11 +30,7 @@ interface IEditionsMetadataRenderer {
      * @param editionId ID of edition to update
      * @param name New name of edition
      */
-    function updateName(
-        address editionsAddress,
-        uint256 editionId,
-        string calldata name
-    ) external;
+    function updateName(address editionsAddress, uint256 editionId, string calldata name) external;
 
     /**
      * @notice Updates description on edition. Managed by token manager if existent
@@ -42,11 +38,7 @@ interface IEditionsMetadataRenderer {
      * @param editionId ID of edition to update
      * @param description New description of edition
      */
-    function updateDescription(
-        address editionsAddress,
-        uint256 editionId,
-        string calldata description
-    ) external;
+    function updateDescription(address editionsAddress, uint256 editionId, string calldata description) external;
 
     /**
      * @notice Updates imageUrl on edition. Managed by token manager if existent
@@ -54,11 +46,7 @@ interface IEditionsMetadataRenderer {
      * @param editionId ID of edition to update
      * @param imageUrl New imageUrl of edition
      */
-    function updateImageUrl(
-        address editionsAddress,
-        uint256 editionId,
-        string calldata imageUrl
-    ) external;
+    function updateImageUrl(address editionsAddress, uint256 editionId, string calldata imageUrl) external;
 
     /**
      * @notice Updates animationUrl on edition. Managed by token manager if existent
@@ -66,11 +54,7 @@ interface IEditionsMetadataRenderer {
      * @param editionId ID of edition to update
      * @param animationUrl New animationUrl of edition
      */
-    function updateAnimationUrl(
-        address editionsAddress,
-        uint256 editionId,
-        string calldata animationUrl
-    ) external;
+    function updateAnimationUrl(address editionsAddress, uint256 editionId, string calldata animationUrl) external;
 
     /**
      * @notice Updates externalUrl on edition. Managed by token manager if existent
@@ -78,11 +62,7 @@ interface IEditionsMetadataRenderer {
      * @param editionId ID of edition to update
      * @param externalUrl New externalUrl of edition
      */
-    function updateExternalUrl(
-        address editionsAddress,
-        uint256 editionId,
-        string calldata externalUrl
-    ) external;
+    function updateExternalUrl(address editionsAddress, uint256 editionId, string calldata externalUrl) external;
 
     /**
      * @notice Updates attributes on edition. Managed by token manager if existent
@@ -90,11 +70,7 @@ interface IEditionsMetadataRenderer {
      * @param editionId ID of edition to update
      * @param attributes New attributes of edition
      */
-    function updateAttributes(
-        address editionsAddress,
-        uint256 editionId,
-        string calldata attributes
-    ) external;
+    function updateAttributes(address editionsAddress, uint256 editionId, string calldata attributes) external;
 
     /**
      * @notice Updates any set of metadata fields

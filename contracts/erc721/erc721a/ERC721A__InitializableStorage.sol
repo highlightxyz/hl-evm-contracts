@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.10;
 
-/** solhint-disable */
+/* solhint-disable */
 
 /**
  * @dev This is a base storage for the  initialization function for upgradeable diamond facet contracts
@@ -20,10 +20,10 @@ library ERC721A__InitializableStorage {
         bool _initializing;
     }
 
-    bytes32 internal constant _STORAGE_SLOT = keccak256("ERC721A.contracts.storage.initializable.facet");
+    bytes32 internal constant STORAGE_SLOT = keccak256("ERC721A.contracts.storage.initializable.facet");
 
     function layout() internal pure returns (Layout storage l) {
-        bytes32 slot = _STORAGE_SLOT;
+        bytes32 slot = STORAGE_SLOT;
         assembly {
             l.slot := slot
         }

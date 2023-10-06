@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-/** solhint-disable */
-
+/* solhint-disable */
 /**
- * @dev This is a base contract to aid in writing upgradeable diamond facet contracts,
- * or any kind of contract that will be deployed behind a proxy.
- * Since proxied contracts do not make use of a constructor, it's common to move constructor logic to an
+ * @dev This is a base contract to aid in writing upgradeable diamond facet contracts, or any kind of contract that will be deployed
+ * behind a proxy. Since proxied contracts do not make use of a constructor, it's common to move constructor logic to an
  * external initializer function, usually called `initialize`. It then becomes necessary to protect this initializer
  * function so it can only be called once. The {initializer} modifier provided by this contract will have this effect.
  *

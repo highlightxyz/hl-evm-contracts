@@ -1,6 +1,6 @@
 {
   "name": "evm-contracts",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Highlight EVM Smart Contract Protocols",
   "main": "index.js",
   "repository": "git@github.com:highlightxyz/evm-contracts.git",
@@ -65,12 +65,15 @@
     "lint": "yarn lint:sol && yarn lint:ts && yarn prettier:check",
     "lint:sol": "solhint --config ./.solhint.json \"contracts/**/*.sol\"",
     "lint:ts": "eslint --config ./.eslintrc.yml --ignore-path ./.eslintignore --ext .js,.ts .",
+    "nuke": "rm -rf node_modules && rm -rf cache && rm -rf artifacts && rm -rf build && rm -rf types",
+    "reinstall": "yarn nuke && FIRST_INSTALL=true yarn install",
     "postinstall": "yarn compile && husky install && yarn typechain",
     "prettier": "prettier --config ./.prettierrc.yml --write \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:check": "prettier --check --config ./.prettierrc.yml \"**/*.{js,json,md,sol,ts,yml}\"",
     "prettier:fix": "yarn prettier:check -w",
     "test": "yarn test:separate",
-    "test:separate": "hardhat test test/AuctionsTest.ts && hardhat test test/EditionsMetadataRendererTest.ts && hardhat test test/ERC721BaseTest.ts && hardhat test test/ERC721EditionsTest.ts && hardhat test test/ERC721GeneralTest.ts && hardhat test test/ERC721GenerativeTest.ts &&  hardhat test test/ERC721SingleEditionTest.ts &&  hardhat test test/ERC721StandardTest.ts &&  hardhat test test/MarketplaceFiltererTest.ts &&  hardhat test test/MetaTransactionsTest.ts &&  hardhat test test/MintManagerTest.ts &&  hardhat test test/UpgradesTest.ts",
+    "test:individual": "AUTO_MINING_ON=true hardhat test",
+    "test:separate": "yarn test:individual test/AuctionsTest.ts && yarn test:individual test/EditionsMetadataRendererTest.ts && yarn test:individual test/ERC721BaseTest.ts && yarn test:individual test/ERC721EditionsTest.ts && yarn test:individual test/ERC721GeneralTest.ts && yarn test:individual test/ERC721GeneralSequenceTest.ts && yarn test:individual test/ERC721GenerativeTest.ts &&  yarn test:individual test/ERC721SingleEditionTest.ts &&  yarn test:individual test/ERC721StandardTest.ts &&  yarn test:individual test/MetaTransactionsTest.ts &&  yarn test:individual test/MintManagerTest.ts &&  yarn test:individual test/UpgradesTest.ts",
     "typechain": "cross-env TS_NODE_TRANSPILE_ONLY=true hardhat typechain",
     "local": "hardhat node",
     "local:ipv4": "hardhat node --hostname 127.0.0.1",
@@ -83,6 +86,7 @@
     "hardhat-contract-sizer": "^2.6.1",
     "keccak256": "^1.0.6",
     "merkletreejs": "^0.2.32",
-    "sol-merger": "^4.1.1"
+    "sol-merger": "^4.1.1",
+    "split-file": "^2.3.0"
   }
 }

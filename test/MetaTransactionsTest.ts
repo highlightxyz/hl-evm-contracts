@@ -12,7 +12,13 @@ import {
   MintManager,
   Observability,
 } from "../types";
-import { setupEditions, setupGeneral, setupSingleEdition, setupSystem } from "./__utils__/helpers";
+import {
+  DEFAULT_ONCHAIN_MINT_VECTOR,
+  setupEditions,
+  setupGeneral,
+  setupSingleEdition,
+  setupSystem,
+} from "./__utils__/helpers";
 import { sign2771MetaTxRequest } from "./__utils__/metaTx";
 
 // have to import this here to not import OpenZeppelin minimal forwarder

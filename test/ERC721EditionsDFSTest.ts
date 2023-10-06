@@ -12,7 +12,12 @@ import {
   Observability,
 } from "../types";
 import { Errors } from "./__utils__/data";
-import { setupEditionsDFS, setupMultipleEditionDFS, setupSystem } from "./__utils__/helpers";
+import {
+  DEFAULT_ONCHAIN_MINT_VECTOR,
+  setupEditionsDFS,
+  setupMultipleEditionDFS,
+  setupSystem,
+} from "./__utils__/helpers";
 import { getValidClaimTimestamp } from "./__utils__/mint";
 
 describe("ERC721EditionsDFS functionality", () => {

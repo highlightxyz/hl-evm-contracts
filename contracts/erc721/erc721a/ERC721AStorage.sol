@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.10;
 
-/** solhint-disable */
+/* solhint-disable */
 
 library ERC721AStorage {
     // Bypass for a `--via-ir` bug (https://github.com/chiru-labs/ERC721A/pull/364).
@@ -48,10 +48,10 @@ library ERC721AStorage {
         mapping(address => mapping(address => bool)) _operatorApprovals;
     }
 
-    bytes32 internal constant _STORAGE_SLOT = keccak256("ERC721A.contracts.storage.ERC721A");
+    bytes32 internal constant STORAGE_SLOT = keccak256("ERC721A.contracts.storage.ERC721A");
 
     function layout() internal pure returns (Layout storage l) {
-        bytes32 slot = _STORAGE_SLOT;
+        bytes32 slot = STORAGE_SLOT;
         assembly {
             l.slot := slot
         }

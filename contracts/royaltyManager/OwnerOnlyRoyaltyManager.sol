@@ -13,8 +13,8 @@ contract OwnerOnlyRoyaltyManager is IRoyaltyManager, InterfaceSupportRoyaltyMana
      * @notice See {IRoyaltyManager-canSetGranularRoyalty}
      */
     function canSetGranularRoyalty(
-        uint256, /* id */
-        Royalty calldata, /* royalty */
+        uint256 /* id */,
+        Royalty calldata /* royalty */,
         address sender
     ) external view override returns (bool) {
         // owner can set granular royalty (same as without royalty manager)
@@ -25,7 +25,7 @@ contract OwnerOnlyRoyaltyManager is IRoyaltyManager, InterfaceSupportRoyaltyMana
      * @notice See {IRoyaltyManager-canSetDefaultRoyalty}
      */
     function canSetDefaultRoyalty(
-        Royalty calldata, /* royalty */
+        Royalty calldata /* royalty */,
         address sender
     ) external view override returns (bool) {
         // owner can set granular royalty (same as without royalty manager)
@@ -35,10 +35,7 @@ contract OwnerOnlyRoyaltyManager is IRoyaltyManager, InterfaceSupportRoyaltyMana
     /**
      * @notice See {IRoyaltyManager-canSwap}
      */
-    function canSwap(
-        address, /* newRoyaltyManager */
-        address sender
-    ) external view override returns (bool) {
+    function canSwap(address /* newRoyaltyManager */, address sender) external view override returns (bool) {
         return Ownable(msg.sender).owner() == sender;
     }
 

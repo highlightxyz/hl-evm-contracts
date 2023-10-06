@@ -15,11 +15,7 @@ interface ITokenManager {
      * @param newData Token's new uri if called by general contract, and any metadata field if called by editions
      * @return If invocation can update metadata
      */
-    function canUpdateMetadata(
-        address sender,
-        uint256 id,
-        bytes calldata newData
-    ) external returns (bool);
+    function canUpdateMetadata(address sender, uint256 id, bytes calldata newData) external returns (bool);
 
     /**
      * @notice Returns whether token manager can be swapped for another one by invocator
@@ -29,11 +25,7 @@ interface ITokenManager {
      * @param newTokenManager New token manager being swapped to
      * @return If invocation can swap token managers
      */
-    function canSwap(
-        address sender,
-        uint256 id,
-        address newTokenManager
-    ) external returns (bool);
+    function canSwap(address sender, uint256 id, address newTokenManager) external returns (bool);
 
     /**
      * @notice Returns whether token manager can be removed

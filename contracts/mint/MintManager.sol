@@ -105,6 +105,17 @@ contract MintManager is
     error SenderNotDirectEOA();
 
     /**
+     * @notice Throw when a mint recipient on a gated claim is different from the claimer,
+     *         and tx sender is not the claimer
+     */
+    error UnsafeMintRecipient();
+
+    /**
+     * @notice Throw when a mint is paused.
+     */
+    error MintPaused();
+
+    /**
      * @notice On-chain mint vector
      * @param contractAddress NFT smart contract address
      * @param currency Currency used for payment. Native gas token, if zero address
@@ -339,6 +350,25 @@ contract MintManager is
     mapping(uint256 => AbridgedVectorData) private _abridgedVectors;
 
     /**
+     * @notice Extra data about an abridged mint vector
+     * Bits Layout:
+     * - [0] `paused`
+     * - [1..127] `unused` (for now)
+     * - [128..255] `flexible data`
+     */
+    mapping(uint256 => uint256) private _abridgedVectorMetadata;
+
+    /**
+     @notice The bit position of `flexibleData` in packed abridged vector metadata.
+     */
+    uint256 private constant _BITPOS_AV_FLEXIBLE_DATA = 128;
+
+    /**
+     @notice The bitmask of `paused` in packed abridged vector metadata.
+     */
+    uint256 private constant _BITMASK_AV_PAUSED = 1;
+
+    /**
      * @notice Emitted when platform executor is added or removed
      * @param executor Changed executor
      * @param added True if executor was added and false otherwise
@@ -373,11 +403,12 @@ contract MintManager is
     event VectorDeleted(uint256 indexed vectorId);
 
     /**
-     * @notice Emitted when vector is paused or unpaused on-chain
+     * @notice Emitted when vector metadata is set
      * @param vectorId ID of vector
      * @param paused True if vector was paused, false otherwise
+     * @param flexibleData Flexible data set in a vector's metadata
      */
-    event VectorPausedOrUnpaused(uint256 indexed vectorId, uint8 indexed paused);
+    event VectorMetadataSet(uint256 indexed vectorId, bool indexed paused, uint128 indexed flexibleData);
 
     /**
      * @notice Emitted when payment is made in native gas token
@@ -548,7 +579,9 @@ contract MintManager is
     function updateAbridgedVector(
         uint256 vectorId,
         AbridgedVector calldata _newVector,
-        UpdateAbridgedVectorConfig calldata updateConfig
+        UpdateAbridgedVectorConfig calldata updateConfig,
+        bool pause,
+        uint128 flexibleData
     ) external {
         address contractAddress = address(_abridgedVectors[vectorId].contractAddress);
         address msgSender = _msgSender();
@@ -578,8 +611,13 @@ contract MintManager is
             if (updateConfig.updateAllowlistRoot > 0) {
                 _abridgedVectors[vectorId].allowlistRoot = _newVector.allowlistRoot;
             }
-            if (updateConfig.updatedRequireDirectEOA > 0) {
+            if (updateConfig.updateRequireDirectEOA > 0) {
                 _abridgedVectors[vectorId].requireDirectEOA = _newVector.requireDirectEOA;
+            }
+            if (updateConfig.updateMetadata > 0) {
+                _abridgedVectorMetadata[vectorId] = _composeAbridgedVectorMetadata(pause, flexibleData);
+
+                emit VectorMetadataSet(vectorId, pause, flexibleData);
             }
 
             emit VectorUpdated(vectorId);
@@ -599,8 +637,25 @@ contract MintManager is
         // check .owner() first, more likely
         if (Ownable(contractAddress).owner() == msgSender || msgSender == contractAddress) {
             delete _abridgedVectors[vectorId];
+            delete _abridgedVectorMetadata[vectorId];
 
             emit VectorDeleted(vectorId);
+        } else {
+            _revert(Unauthorized.selector);
+        }
+    }
+
+    /**
+     * @notice See {IAbridgedMintVector-setAbridgedVectorMetadata}
+     */
+    function setAbridgedVectorMetadata(uint256 vectorId, bool pause, uint128 flexibleData) external {
+        address contractAddress = address(_abridgedVectors[vectorId].contractAddress);
+        address msgSender = _msgSender();
+        // check .owner() first, more likely
+        if (Ownable(contractAddress).owner() == msgSender || msgSender == contractAddress) {
+            _abridgedVectorMetadata[vectorId] = _composeAbridgedVectorMetadata(pause, flexibleData);
+
+            emit VectorMetadataSet(vectorId, pause, flexibleData);
         } else {
             _revert(Unauthorized.selector);
         }
@@ -610,7 +665,8 @@ contract MintManager is
      * @notice Mint on a Series with a valid claim where one can choose the tokens to mint
      * @param claim Series Claim
      * @param claimSignature Signed + encoded claim
-     * @param mintRecipient Who to mint the NFT(s) to
+     * @param mintRecipient Who to mint the NFT(s) to.
+     *                      Can't mint to different recipient if tx isn't sent by claim.claimer.
      * @param tokenIds IDs of NFTs to mint
      */
     function gatedSeriesMintChooseToken(
@@ -619,9 +675,14 @@ contract MintManager is
         address mintRecipient,
         uint256[] calldata tokenIds
     ) external payable {
+        address msgSender = _msgSender();
         uint256 numTokensToMint = tokenIds.length;
-        _processGatedSeriesMintClaim(claim, claimSignature, numTokensToMint);
+        _processGatedSeriesMintClaim(claim, claimSignature, numTokensToMint, msgSender);
+
         // mint NFT(s)
+        if (claim.claimer != msgSender && mintRecipient != claim.claimer) {
+            _revert(UnsafeMintRecipient.selector);
+        }
         if (numTokensToMint == 1) {
             IERC721GeneralMint(claim.contractAddress).mintSpecificTokenToOneRecipient(mintRecipient, tokenIds[0]);
         } else {
@@ -635,15 +696,21 @@ contract MintManager is
      * @notice Mint on a Series collection with a valid claim
      * @param claim Claim
      * @param claimSignature Signed + encoded claim
-     * @param mintRecipient Who to mint the NFT(s) to
+     * @param mintRecipient Who to mint the NFT(s) to.
+     *                      Can't mint to different recipient if tx isn't sent by claim.claimer.
      */
     function gatedSeriesMint(
         Claim calldata claim,
         bytes calldata claimSignature,
         address mintRecipient
     ) external payable {
-        _processGatedMintClaim(claim, claimSignature);
+        address msgSender = _msgSender();
+        _processGatedMintClaim(claim, claimSignature, msgSender);
+
         // mint NFT(s)
+        if (claim.claimer != msgSender && mintRecipient != claim.claimer) {
+            _revert(UnsafeMintRecipient.selector);
+        }
         if (claim.numTokensToMint == 1) {
             IERC721GeneralMint(claim.contractAddress).mintOneToOneRecipient(mintRecipient);
         } else {
@@ -657,16 +724,16 @@ contract MintManager is
      * @param numTokensToMint Number of tokens to mint
      * @param mintRecipient Who to mint the NFT(s) to
      */
-    function vectorMintEdition721(
-        uint256 vectorId,
-        uint48 numTokensToMint,
-        address mintRecipient
-    ) external payable {
+    function vectorMintEdition721(uint256 vectorId, uint48 numTokensToMint, address mintRecipient) external payable {
         address msgSender = _msgSender();
+        address user = mintRecipient;
+        if (_useSenderForUserLimit(vectorId)) {
+            user = msgSender;
+        }
 
         AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
         uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
-        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][msgSender]) + numTokensToMint;
+        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][user]) + numTokensToMint;
 
         if (_vector.allowlistRoot != 0) {
             _revert(AllowlistInvalid.selector);
@@ -679,7 +746,7 @@ contract MintManager is
         }
 
         _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
-        userClaims[vectorId][msgSender] = uint64(newNumClaimedForUser);
+        userClaims[vectorId][user] = uint64(newNumClaimedForUser);
 
         _vectorMintEdition721(
             vectorId,
@@ -705,13 +772,17 @@ contract MintManager is
         bytes32[] calldata proof
     ) external payable {
         address msgSender = _msgSender();
+        address user = mintRecipient;
+        if (_useSenderForUserLimit(vectorId)) {
+            user = msgSender;
+        }
 
         AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
         uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
-        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][msgSender]) + numTokensToMint;
+        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][user]) + numTokensToMint;
 
         // merkle tree allowlist validation
-        bytes32 leaf = keccak256(abi.encodePacked(msgSender));
+        bytes32 leaf = keccak256(abi.encodePacked(user));
         if (!MerkleProof.verify(proof, _vector.allowlistRoot, leaf)) {
             _revert(AllowlistInvalid.selector);
         }
@@ -723,7 +794,7 @@ contract MintManager is
         }
 
         _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
-        userClaims[vectorId][msgSender] = uint64(newNumClaimedForUser);
+        userClaims[vectorId][user] = uint64(newNumClaimedForUser);
 
         _vectorMintEdition721(
             vectorId,
@@ -741,16 +812,16 @@ contract MintManager is
      * @param numTokensToMint Number of tokens to mint
      * @param mintRecipient Who to mint the NFT(s) to
      */
-    function vectorMintSeries721(
-        uint256 vectorId,
-        uint48 numTokensToMint,
-        address mintRecipient
-    ) external payable {
+    function vectorMintSeries721(uint256 vectorId, uint48 numTokensToMint, address mintRecipient) external payable {
         address msgSender = _msgSender();
+        address user = mintRecipient;
+        if (_useSenderForUserLimit(vectorId)) {
+            user = msgSender;
+        }
 
         AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
         uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
-        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][msgSender]) + numTokensToMint;
+        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][user]) + numTokensToMint;
 
         if (_vector.allowlistRoot != 0) {
             _revert(AllowlistInvalid.selector);
@@ -763,7 +834,7 @@ contract MintManager is
         }
 
         _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
-        userClaims[vectorId][msgSender] = uint64(newNumClaimedForUser);
+        userClaims[vectorId][user] = uint64(newNumClaimedForUser);
 
         _vectorMintGeneral721(
             vectorId,
@@ -789,13 +860,17 @@ contract MintManager is
         bytes32[] calldata proof
     ) external payable {
         address msgSender = _msgSender();
+        address user = mintRecipient;
+        if (_useSenderForUserLimit(vectorId)) {
+            user = msgSender;
+        }
 
         AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
         uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
-        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][msgSender]) + numTokensToMint;
+        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][user]) + numTokensToMint;
 
         // merkle tree allowlist validation
-        bytes32 leaf = keccak256(abi.encodePacked(msgSender));
+        bytes32 leaf = keccak256(abi.encodePacked(user));
         if (!MerkleProof.verify(proof, _vector.allowlistRoot, leaf)) {
             _revert(AllowlistInvalid.selector);
         }
@@ -807,7 +882,7 @@ contract MintManager is
         }
 
         _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
-        userClaims[vectorId][msgSender] = uint64(newNumClaimedForUser);
+        userClaims[vectorId][user] = uint64(newNumClaimedForUser);
 
         _vectorMintGeneral721(
             vectorId,
@@ -823,15 +898,21 @@ contract MintManager is
      * @notice Mint on an ERC721Editions or ERC721SingleEdiion collection with a valid claim
      * @param _claim Claim
      * @param _signature Signed + encoded claim
-     * @param _recipient Who to mint the NFT(s) to
+     * @param _recipient Who to mint the NFT(s) to.
+     *                   Can't mint to different recipient if tx isn't sent by claim.claimer.
      */
     function gatedMintEdition721(
         Claim calldata _claim,
         bytes calldata _signature,
         address _recipient
     ) external payable {
-        _processGatedMintClaim(_claim, _signature);
+        address msgSender = _msgSender();
+        _processGatedMintClaim(_claim, _signature, msgSender);
+
         // mint NFT(s)
+        if (_claim.claimer != msgSender && _recipient != _claim.claimer) {
+            _revert(UnsafeMintRecipient.selector);
+        }
         if (_claim.numTokensToMint == 1) {
             IERC721EditionMint(_claim.contractAddress).mintOneToRecipient(_claim.editionId, _recipient);
         } else {
@@ -890,7 +971,7 @@ contract MintManager is
      * @notice Verify that claim and claim signature are valid for a mint
      * @param claim Claim
      * @param signature Signed + encoded claim
-     * @param expectedMsgSender Expected claimer to verify claim for
+     * @param expectedMsgSender *DEPRECATED*, keep for interface adherence
      */
     function verifyClaim(
         Claim calldata claim,
@@ -898,9 +979,6 @@ contract MintManager is
         address expectedMsgSender
     ) external view returns (bool) {
         address signer = _claimSigner(claim, signature);
-        if (expectedMsgSender != claim.claimer) {
-            _revert(SenderNotClaimer.selector);
-        }
 
         return
             _isPlatformExecutor(signer) &&
@@ -911,7 +989,7 @@ contract MintManager is
                 claim.maxClaimableViaVector) &&
             (claim.maxClaimablePerUser == 0 ||
                 claim.numTokensToMint +
-                    offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[expectedMsgSender] <=
+                    offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[claim.claimer] <=
                 claim.maxClaimablePerUser);
     }
 
@@ -919,7 +997,7 @@ contract MintManager is
      * @notice Verify that series claim and series claim signature are valid for a mint
      * @param claim Series Claim
      * @param signature Signed + encoded claim
-     * @param expectedMsgSender Expected claimer to verify claim for
+     * @param expectedMsgSender *DEPRECATED*, keep for interface adherence
      * @param tokenIds IDs of NFTs to be minted
      */
     function verifySeriesClaim(
@@ -929,9 +1007,6 @@ contract MintManager is
         uint256[] calldata tokenIds
     ) external view returns (bool) {
         address signer = _seriesClaimSigner(claim, signature);
-        if (expectedMsgSender != claim.claimer) {
-            _revert(SenderNotClaimer.selector);
-        }
         uint256 numTokensToMint = tokenIds.length;
 
         /* solhint-disable no-empty-blocks */
@@ -956,8 +1031,7 @@ contract MintManager is
                 numTokensToMint + offchainVectorsClaimState[claim.offchainVectorId].numClaimed <=
                 claim.maxClaimableViaVector) &&
             (claim.maxClaimablePerUser == 0 ||
-                numTokensToMint +
-                    offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[expectedMsgSender] <=
+                numTokensToMint + offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[claim.claimer] <=
                 claim.maxClaimablePerUser);
     }
 
@@ -1023,6 +1097,13 @@ contract MintManager is
             );
     }
 
+    /**
+     * @notice See {IAbridgedMintVector-getAbridgedVectorMetadata}
+     */
+    function getAbridgedVectorMetadata(uint256 vectorId) external view returns (bool, uint128) {
+        return _decomposeAbridgedVectorMetadata(_abridgedVectorMetadata[vectorId]);
+    }
+
     /* solhint-disable no-empty-blocks */
     /**
      * @notice Limit upgrades of contract to MintManager owner
@@ -1055,11 +1136,10 @@ contract MintManager is
      * @notice Process, verify, and update the state of a gated mint claim
      * @param claim Claim
      * @param claimSignature Signed + encoded claim
+     * @param msgSender Transaction sender
      */
-    function _processGatedMintClaim(Claim calldata claim, bytes calldata claimSignature) private {
-        address msgSender = _msgSender();
-
-        _verifyAndUpdateClaim(claim, claimSignature, msgSender);
+    function _processGatedMintClaim(Claim calldata claim, bytes calldata claimSignature, address msgSender) private {
+        _verifyAndUpdateClaim(claim, claimSignature);
 
         // calculate mint fee amount
         uint256 mintFeeAmount = _platformMintFee * claim.numTokensToMint;
@@ -1094,15 +1174,15 @@ contract MintManager is
      * @param claim Series Claim
      * @param claimSignature Signed + encoded claim
      * @param numTokensToMint Number of tokens to mint on series
+     * @param msgSender Transaction sender
      */
     function _processGatedSeriesMintClaim(
         SeriesClaim calldata claim,
         bytes calldata claimSignature,
-        uint256 numTokensToMint
+        uint256 numTokensToMint,
+        address msgSender
     ) private {
-        address msgSender = _msgSender();
-
-        _verifyAndUpdateSeriesClaim(claim, claimSignature, msgSender, numTokensToMint);
+        _verifyAndUpdateSeriesClaim(claim, claimSignature, numTokensToMint);
 
         // calculate mint fee amount
         uint256 mintFeeAmount = _platformMintFee * numTokensToMint;
@@ -1134,23 +1214,15 @@ contract MintManager is
      * @notice Verify, and update the state of a gated mint claim
      * @param claim Claim
      * @param signature Signed + encoded claim
-     * @param msgSender Expected claimer
      */
-    function _verifyAndUpdateClaim(
-        Claim calldata claim,
-        bytes calldata signature,
-        address msgSender
-    ) private {
+    function _verifyAndUpdateClaim(Claim calldata claim, bytes calldata signature) private {
         address signer = _claimSigner(claim, signature);
-        if (msgSender != claim.claimer) {
-            _revert(SenderNotClaimer.selector);
-        }
 
         // cannot cache here due to nested mapping
         uint256 expectedNumClaimedViaVector = offchainVectorsClaimState[claim.offchainVectorId].numClaimed +
             claim.numTokensToMint;
         uint256 expectedNumClaimedByUser = offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[
-            msgSender
+            claim.claimer
         ] + claim.numTokensToMint;
 
         if (
@@ -1166,32 +1238,27 @@ contract MintManager is
         _offchainVectorsToNoncesUsed[claim.offchainVectorId].add(claim.claimNonce); // mark claim nonce as used
         // update claim state
         offchainVectorsClaimState[claim.offchainVectorId].numClaimed = expectedNumClaimedViaVector;
-        offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[msgSender] = expectedNumClaimedByUser;
+        offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[claim.claimer] = expectedNumClaimedByUser;
     }
 
     /**
      * @notice Verify, and update the state of a gated series mint claim
      * @param claim Series Claim
      * @param signature Signed + encoded claim
-     * @param msgSender Expected claimer
      * @param numTokensToMint How many tokens to mint in this series claim
      */
     function _verifyAndUpdateSeriesClaim(
         SeriesClaim calldata claim,
         bytes calldata signature,
-        address msgSender,
         uint256 numTokensToMint
     ) private {
         address signer = _seriesClaimSigner(claim, signature);
-        if (msgSender != claim.claimer) {
-            _revert(SenderNotClaimer.selector);
-        }
 
         // cannot cache here due to nested mapping
         uint256 expectedNumClaimedViaVector = offchainVectorsClaimState[claim.offchainVectorId].numClaimed +
             numTokensToMint;
         uint256 expectedNumClaimedByUser = offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[
-            msgSender
+            claim.claimer
         ] + numTokensToMint;
 
         if (
@@ -1208,30 +1275,25 @@ contract MintManager is
         _offchainVectorsToNoncesUsed[claim.offchainVectorId].add(claim.claimNonce); // mark claim nonce as used
         // update claim state
         offchainVectorsClaimState[claim.offchainVectorId].numClaimed = expectedNumClaimedViaVector;
-        offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[msgSender] = expectedNumClaimedByUser;
+        offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[claim.claimer] = expectedNumClaimedByUser;
     }
 
     /**
      * @notice Verify, and update the state of a gated mint claim (version w/ meta-tx packets)
      * @param claim Claim
      * @param signature Signed + encoded claim
-     * @param msgSender Expected claimer
      */
     function _verifyAndUpdateClaimWithMetaTxPacket(
         ClaimWithMetaTxPacket calldata claim,
-        bytes calldata signature,
-        address msgSender
+        bytes calldata signature
     ) private {
         address signer = _claimWithMetaTxPacketSigner(claim, signature);
-        if (msgSender != claim.claimer) {
-            _revert(SenderNotClaimer.selector);
-        }
 
         // cannot cache here due to nested mapping
         uint256 expectedNumClaimedViaVector = offchainVectorsClaimState[claim.offchainVectorId].numClaimed +
             claim.numTokensToMint;
         uint256 expectedNumClaimedByUser = offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[
-            msgSender
+            claim.claimer
         ] + claim.numTokensToMint;
 
         if (
@@ -1247,7 +1309,7 @@ contract MintManager is
         _offchainVectorsToNoncesUsed[claim.offchainVectorId].add(claim.claimNonce); // mark claim nonce as used
         // update claim state
         offchainVectorsClaimState[claim.offchainVectorId].numClaimed = expectedNumClaimedViaVector;
-        offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[msgSender] = expectedNumClaimedByUser;
+        offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[claim.claimer] = expectedNumClaimedByUser;
     }
 
     /**
@@ -1274,6 +1336,10 @@ contract MintManager is
             (numTokensToMint > _vector.tokenLimitPerTx && _vector.tokenLimitPerTx != 0)
         ) {
             _revert(OnchainVectorMintGuardFailed.selector);
+        }
+
+        if (_isVectorPaused(_abridgedVectorMetadata[_vectorId])) {
+            _revert(MintPaused.selector);
         }
 
         // calculate mint fee amount
@@ -1489,11 +1555,10 @@ contract MintManager is
      * @param claim Claim
      * @param signature Claim signature
      */
-    function _claimWithMetaTxPacketSigner(ClaimWithMetaTxPacket calldata claim, bytes calldata signature)
-        private
-        view
-        returns (address)
-    {
+    function _claimWithMetaTxPacketSigner(
+        ClaimWithMetaTxPacket calldata claim,
+        bytes calldata signature
+    ) private view returns (address) {
         return
             _hashTypedDataV4(
                 keccak256(
@@ -1511,6 +1576,24 @@ contract MintManager is
      */
     function _isPlatformExecutor(address _executor) private view returns (bool) {
         return _platformExecutors.contains(_executor);
+    }
+
+    /**
+     * @dev Understand whether to use the transaction sender or the nft recipient for per-user limits on onchain vectors
+     */
+    function _useSenderForUserLimit(uint256 mintVectorId) private view returns (bool) {
+        return ((block.chainid == 1 && mintVectorId < 19) ||
+            (block.chainid == 5 && mintVectorId < 188) ||
+            (block.chainid == 42161 && mintVectorId < 6) ||
+            (block.chainid == 421613 && mintVectorId < 3) ||
+            (block.chainid == 84531 && mintVectorId < 14) ||
+            (block.chainid == 8453 && mintVectorId < 60) ||
+            (block.chainid == 7777777 && mintVectorId < 20) ||
+            (block.chainid == 999 && mintVectorId < 10) ||
+            (block.chainid == 10 && mintVectorId < 11) ||
+            (block.chainid == 420 && mintVectorId < 3) ||
+            (block.chainid == 137 && mintVectorId < 7) ||
+            (block.chainid == 80001 && mintVectorId < 16));
     }
 
     /* solhint-disable max-line-length */
@@ -1625,12 +1708,45 @@ contract MintManager is
      * @param claimNonce Claim's unique identifier
      * @param offchainVectorId Offchain vector ID of claim
      */
-    function _claimWithMetaTxABIEncoded2(bytes32 claimNonce, bytes32 offchainVectorId)
-        private
-        pure
-        returns (bytes memory)
-    {
+    function _claimWithMetaTxABIEncoded2(
+        bytes32 claimNonce,
+        bytes32 offchainVectorId
+    ) private pure returns (bytes memory) {
         return abi.encode(claimNonce, offchainVectorId);
+    }
+
+    /**
+     * @notice Compose abridged vector metadata into a `uint256`
+     * @param paused If the abridged vector is paused
+     * @param flexibleData Flexible data
+     */
+    function _composeAbridgedVectorMetadata(bool paused, uint128 flexibleData) private pure returns (uint256) {
+        uint256 metadata = 0;
+        if (paused) {
+            metadata = metadata | _BITMASK_AV_PAUSED;
+        }
+        metadata = metadata | (uint256(flexibleData) << 128);
+
+        return metadata;
+    }
+
+    /**
+     * @notice Decompose abridged vector metadata from a `uint256` into its constituent parts
+     * @param packedMetadata Packed abridged vector metadata
+     */
+    function _decomposeAbridgedVectorMetadata(uint256 packedMetadata) private pure returns (bool, uint128) {
+        bool paused = packedMetadata & _BITMASK_AV_PAUSED != 0;
+        uint128 flexibleData = uint128(packedMetadata >> _BITPOS_AV_FLEXIBLE_DATA);
+
+        return (paused, flexibleData);
+    }
+
+    /**
+     * @notice Grab paused status for an onchain abridged mint vector
+     * @param packedMetadata Packed abridged vector metadata
+     */
+    function _isVectorPaused(uint256 packedMetadata) private pure returns (bool) {
+        return packedMetadata & _BITMASK_AV_PAUSED != 0;
     }
 
     /**

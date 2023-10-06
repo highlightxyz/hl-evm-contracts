@@ -12,13 +12,9 @@ abstract contract InterfaceSupportEditionsTokenManager is InterfaceSupportTokenM
     /**
      * @notice See {IERC165-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(InterfaceSupportTokenManager)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(InterfaceSupportTokenManager) returns (bool) {
         return
             interfaceId == type(ITokenManagerEditions).interfaceId ||
             InterfaceSupportTokenManager.supportsInterface(interfaceId);

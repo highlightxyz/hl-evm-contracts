@@ -70,7 +70,8 @@ export const SAMPLE_ABRIDGED_VECTOR_UPDATE_CONFIG = ({
   updateMaxUserClaimableViaVector,
   updatePricePerToken,
   updateAllowlistRoot,
-  updatedRequireDirectEOA,
+  updateRequireDirectEOA,
+  updateMetadata,
 }: {
   updateMaxTotalClaimableViaVector?: boolean;
   updateStartTimestamp?: boolean;
@@ -80,7 +81,8 @@ export const SAMPLE_ABRIDGED_VECTOR_UPDATE_CONFIG = ({
   updateMaxUserClaimableViaVector?: boolean;
   updatePricePerToken?: boolean;
   updateAllowlistRoot?: boolean;
-  updatedRequireDirectEOA?: boolean;
+  updateRequireDirectEOA?: boolean;
+  updateMetadata?: boolean;
 }) => {
   return {
     updateStartTimestamp: updateStartTimestamp ? 1 : 0,
@@ -91,7 +93,8 @@ export const SAMPLE_ABRIDGED_VECTOR_UPDATE_CONFIG = ({
     updateMaxUserClaimableViaVector: updateMaxUserClaimableViaVector ? 1 : 0,
     updatePricePerToken: updatePricePerToken ? 1 : 0,
     updateAllowlistRoot: updateAllowlistRoot ? 1 : 0,
-    updatedRequireDirectEOA: updatedRequireDirectEOA ? 1 : 0,
+    updateRequireDirectEOA: updateRequireDirectEOA ? 1 : 0,
+    updateMetadata: updateMetadata ? 1 : 0,
   };
 };
 
@@ -139,4 +142,6 @@ export enum Errors {
   OwnerQueryForNonexistentToken = "OwnerQueryForNonexistentToken",
   TransferFromIncorrectOwner = "TransferFromIncorrectOwner",
   TokenMintedAlready = "TokenMintedAlready",
+  UnsafeMintRecipient = "UnsafeMintRecipient",
+  MintPaused = "MintPaused",
 }

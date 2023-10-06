@@ -37,11 +37,7 @@ interface IRoyaltyManager {
      * @param royalty Royalty being set
      * @param sender msg sender
      */
-    function canSetGranularRoyalty(
-        uint256 id,
-        Royalty calldata royalty,
-        address sender
-    ) external view returns (bool);
+    function canSetGranularRoyalty(uint256 id, Royalty calldata royalty, address sender) external view returns (bool);
 
     /**
      * @notice Defines conditions around being able to set default royalty

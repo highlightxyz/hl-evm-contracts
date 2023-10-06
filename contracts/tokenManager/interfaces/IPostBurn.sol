@@ -15,9 +15,5 @@ interface IPostBurn {
      * @param sender Msg sender
      * @param id Burned token's id or id of edition of token that is burned
      */
-    function postBurn(
-        address operator,
-        address sender,
-        uint256 id
-    ) external;
+    function postBurn(address operator, address sender, uint256 id) external;
 }

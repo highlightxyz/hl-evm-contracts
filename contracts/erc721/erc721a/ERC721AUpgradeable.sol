@@ -4,12 +4,12 @@
 
 pragma solidity 0.8.10;
 
-/** solhint-disable */
-
 import "./IERC721AUpgradeable.sol";
 import { ERC721AStorage } from "./ERC721AStorage.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/StringsUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+
+/* solhint-disable */
 
 /**
  * @dev Interface of ERC721 token receiver.
@@ -24,9 +24,8 @@ interface ERC721A__IERC721ReceiverUpgradeable {
 }
 
 /**
- * @title ERC721AHL
- * @ author: Chiru Labs, modified by ishan@highlight.xyz
- *                       (mainly to store mint quantity data in extra bits per packed ownership)
+ * @title ERC721A
+ * @author Chiru Labs, modified by ishan@highlight.xyz
  *
  * @dev Implementation of the [ERC721](https://eips.ethereum.org/EIPS/eip-721)
  * Non-Fungible Token Standard, including the Metadata extension.
@@ -40,9 +39,8 @@ interface ERC721A__IERC721ReceiverUpgradeable {
  * - An owner cannot have more than 2**64 - 1 (max value of uint64) of supply.
  * - The maximum token ID cannot exceed 2**256 - 1 (max value of uint256).
  */
-contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
+contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable, ContextUpgradeable {
     using ERC721AStorage for ERC721AStorage.Layout;
-    using StringsUpgradeable for uint256;
 
     // =============================================================
     //                           CONSTANTS
@@ -84,7 +82,11 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
     // The mask of the lower 160 bits for addresses.
     uint256 private constant _BITMASK_ADDRESS = (1 << 160) - 1;
 
-    uint256 private constant _UINT_24_MAX = 16777216;
+    // The maximum `quantity` that can be minted with {_mintERC2309}.
+    // This limit is to prevent overflows on the address data entries.
+    // For a limit of 5000, a total of 3.689e15 calls to {_mintERC2309}
+    // is required to cause an overflow, which is unrealistic.
+    uint256 private constant _MAX_MINT_ERC2309_QUANTITY_LIMIT = 5000;
 
     // The `Transfer` event signature is given by:
     // `keccak256(bytes("Transfer(address,address,uint256)"))`.
@@ -103,30 +105,6 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
         ERC721AStorage.layout()._name = name_;
         ERC721AStorage.layout()._symbol = symbol_;
         ERC721AStorage.layout()._currentIndex = _startTokenId();
-    }
-
-    /**
-     * @dev Hook that is called after a set of serially-ordered token IDs
-     * have been transferred.
-     *
-     * `startTokenId` - the first token ID to be transferred.
-     *
-     * Calling conditions:
-     *
-     * - `from` and `to` are both non-zero, since this is only invoked ont transfers
-     */
-    function _afterTokenTransfers(
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal virtual {}
-
-    /**
-     * @dev Added by Highlight to facilitate updating of name and symbol
-     */
-    function _setContractMetadata(string calldata newName, string calldata newSymbol) internal {
-        ERC721AStorage.layout()._name = newName;
-        ERC721AStorage.layout()._symbol = newSymbol;
     }
 
     // =============================================================
@@ -153,7 +131,7 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
      * Burned tokens will reduce the count.
      * To get the total number of tokens minted, please see {_totalMinted}.
      */
-    function totalSupply() external view virtual override returns (uint256) {
+    function totalSupply() public view virtual override returns (uint256) {
         // Counter underflow is impossible as _burnCounter cannot be incremented
         // more than `_currentIndex - _startTokenId()` times.
         unchecked {
@@ -277,7 +255,7 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
         if (!_exists(tokenId)) _revert(URIQueryForNonexistentToken.selector);
 
         string memory baseURI = _baseURI();
-        return bytes(baseURI).length > 0 ? string(abi.encodePacked(baseURI, "/", tokenId.toString())) : "";
+        return bytes(baseURI).length != 0 ? string(abi.encodePacked(baseURI, "/", _toString(tokenId))) : "";
     }
 
     /**
@@ -302,6 +280,14 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
      */
     function ownerOf(uint256 tokenId) public view virtual override returns (address) {
         return address(uint160(_packedOwnershipOf(tokenId)));
+    }
+
+    /**
+     * @dev Added by Highlight to facilitate updating of name and symbol
+     */
+    function _setContractMetadata(string calldata newName, string calldata newSymbol) internal {
+        ERC721AStorage.layout()._name = newName;
+        ERC721AStorage.layout()._symbol = newSymbol;
     }
 
     /**
@@ -336,7 +322,6 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
         }
     }
 
-    /* solhint-disable code-complexity */
     /**
      * Returns the packed ownership data of `tokenId`.
      */
@@ -345,28 +330,18 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
             packed = ERC721AStorage.layout()._packedOwnerships[tokenId];
             // If the data at the starting slot does not exist, start the scan.
             if (packed == 0) {
-                // adds run-time, potentially redundant, remove soon
-                if (!_exists(tokenId)) {
-                    _revert(OwnerQueryForNonexistentToken.selector);
-                }
-                // current index tracks number of tokens, but we could mint certain tokens with different ids
-                // if (tokenId >= ERC721AStorage.layout()._currentIndex)
-                // _revert(OwnerQueryForNonexistentToken.selector);
-
+                if (tokenId >= ERC721AStorage.layout()._currentIndex) _revert(OwnerQueryForNonexistentToken.selector);
                 // Invariant:
                 // There will always be an initialized ownership slot
                 // (i.e. `ownership.addr != address(0) && ownership.burned == false`)
                 // before an unintialized ownership slot
                 // (i.e. `ownership.addr == address(0) && ownership.burned == false`)
                 // Hence, `tokenId` will not underflow.
-
+                //
                 // We can directly compare the packed value.
                 // If the address is zero, packed will be zero.
                 for (;;) {
                     unchecked {
-                        if (tokenId == 0) {
-                            _revert(OwnerQueryForNonexistentToken.selector);
-                        }
                         packed = ERC721AStorage.layout()._packedOwnerships[--tokenId];
                     }
                     if (packed == 0) continue;
@@ -385,8 +360,6 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
         }
         _revert(OwnerQueryForNonexistentToken.selector);
     }
-
-    /* solhint-enable code-complexity */
 
     /**
      * @dev Returns the unpacked `TokenOwnership` struct from `packed`.
@@ -474,28 +447,6 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
         return ERC721AStorage.layout()._operatorApprovals[owner][operator];
     }
 
-    function _minted(uint256 tokenId) internal view virtual returns (bool result) {
-        if (_startTokenId() <= tokenId) {
-            uint256 initialTokenId = tokenId;
-            uint24 mintQuantity;
-            while (
-                (mintQuantity = uint24((ERC721AStorage.layout()._packedOwnerships[tokenId]) >> _BITPOS_EXTRA_DATA)) == 0
-            ) {
-                // edited to avoid underflow
-                if (tokenId == 0) {
-                    return false;
-                }
-                --tokenId;
-            }
-
-            // if the mint quantity at the number we landed at does extend to the initially queried tokenId,
-            // the initially queried tokenId has been minted
-            if (uint24(initialTokenId - tokenId) < mintQuantity) {
-                return true;
-            }
-        }
-    }
-
     /**
      * @dev Returns whether `tokenId` exists.
      *
@@ -505,9 +456,11 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
      */
     function _exists(uint256 tokenId) internal view virtual returns (bool result) {
         if (_startTokenId() <= tokenId) {
-            uint256 packed = ERC721AStorage.layout()._packedOwnerships[tokenId];
-            // not burned, and minted (calculate burn first, to avoid minted call if token has been burned)
-            result = ((packed & _BITMASK_BURNED) == 0) && _minted(tokenId);
+            if (tokenId < ERC721AStorage.layout()._currentIndex) {
+                uint256 packed;
+                while ((packed = ERC721AStorage.layout()._packedOwnerships[tokenId]) == 0) --tokenId;
+                result = packed & _BITMASK_BURNED == 0;
+            }
         }
     }
 
@@ -544,11 +497,9 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
     /**
      * @dev Returns the storage slot and value for the approved address of `tokenId`.
      */
-    function _getApprovedSlotAndAddress(uint256 tokenId)
-        private
-        view
-        returns (uint256 approvedAddressSlot, address approvedAddress)
-    {
+    function _getApprovedSlotAndAddress(
+        uint256 tokenId
+    ) private view returns (uint256 approvedAddressSlot, address approvedAddress) {
         ERC721AStorage.TokenApprovalRef storage tokenApproval = ERC721AStorage.layout()._tokenApprovals[tokenId];
         // The following is equivalent to `approvedAddress = _tokenApprovals[tokenId].value`.
         assembly {
@@ -574,11 +525,7 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
      *
      * Emits a {Transfer} event.
      */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) public payable virtual override {
+    function transferFrom(address from, address to, uint256 tokenId) public payable virtual override {
         uint256 prevOwnershipPacked = _packedOwnershipOf(tokenId);
 
         // Mask `from` to the lower 160 bits, in case the upper bits somehow aren't clean.
@@ -615,7 +562,7 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
             // - `nextInitialized` to `true`.
             ERC721AStorage.layout()._packedOwnerships[tokenId] = _packOwnershipData(
                 to,
-                _BITMASK_NEXT_INITIALIZED | _nextExtraData(from, to, prevOwnershipPacked, 0)
+                _BITMASK_NEXT_INITIALIZED | _nextExtraData(from, to, prevOwnershipPacked)
             );
 
             // If the next slot may not have been initialized (i.e. `nextInitialized == false`) .
@@ -623,13 +570,10 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
                 uint256 nextTokenId = tokenId + 1;
                 // If the next slot's address is zero and not burned (i.e. packed value is zero).
                 if (ERC721AStorage.layout()._packedOwnerships[nextTokenId] == 0) {
-                    // If the next slot exists
-                    if (_minted(nextTokenId)) {
-                        // remove extra data from this
+                    // If the next slot is within bounds.
+                    if (nextTokenId != ERC721AStorage.layout()._currentIndex) {
                         // Initialize the next slot to maintain correctness for `ownerOf(tokenId + 1)`.
-
-                        // remove mint quantity to preserve original mint spots
-                        ERC721AStorage.layout()._packedOwnerships[nextTokenId] = _removeExtraData(prevOwnershipPacked);
+                        ERC721AStorage.layout()._packedOwnerships[nextTokenId] = prevOwnershipPacked;
                     }
                 }
             }
@@ -656,11 +600,7 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
     /**
      * @dev Equivalent to `safeTransferFrom(from, to, tokenId, '')`.
      */
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) public payable virtual override {
+    function safeTransferFrom(address from, address to, uint256 tokenId) public payable virtual override {
         safeTransferFrom(from, to, tokenId, "");
     }
 
@@ -691,6 +631,24 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
                 _revert(TransferToNonERC721ReceiverImplementer.selector);
             }
     }
+
+    /**
+     * @dev Hook that is called after a set of serially-ordered token IDs
+     * have been transferred. This includes minting.
+     * And also called after one token has been burned.
+     *
+     * `startTokenId` - the first token ID to be transferred.
+     * `quantity` - the amount to be transferred.
+     *
+     * Calling conditions:
+     *
+     * - When `from` and `to` are both non-zero, `from`'s `tokenId` has been
+     * transferred to `to`.
+     * - When `from` is zero, `tokenId` has been minted for `to`.
+     * - When `to` is zero, `tokenId` has been burned by `from`.
+     * - `from` and `to` are never both zero.
+     */
+    function _afterTokenTransfers(address from, address to, uint256 startTokenId) internal virtual {}
 
     /**
      * @dev Private function to invoke {IERC721Receiver-onERC721Received} on a target contract.
@@ -736,27 +694,8 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
      *
      * Emits a {Transfer} event for each mint.
      */
-    function _mint(
-        address to,
-        uint256 quantity,
-        uint256 startTokenId,
-        uint256 currentIndex
-    ) internal virtual {
-        if (quantity >= _UINT_24_MAX) {
-            _revert(QuantityTooLarge.selector);
-        }
-        if (currentIndex == 0) {
-            currentIndex = ERC721AStorage.layout()._currentIndex;
-        }
-        if (startTokenId == 0) {
-            startTokenId = currentIndex;
-        } else {
-            // only path that selects token ids erratically (collector's choice series) runs _mint per token,
-            // so no need to check _minted for consecutive token ids here
-            if (_minted(startTokenId)) {
-                _revert(TokenMintedAlready.selector);
-            }
-        }
+    function _mint(address to, uint256 quantity) internal virtual {
+        uint256 startTokenId = ERC721AStorage.layout()._currentIndex;
         if (quantity == 0) _revert(MintZeroQuantity.selector);
 
         // Overflows are incredibly unrealistic.
@@ -770,7 +709,7 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
             // - `nextInitialized` to `quantity == 1`.
             ERC721AStorage.layout()._packedOwnerships[startTokenId] = _packOwnershipData(
                 to,
-                _nextInitializedFlag(quantity) | _nextExtraData(address(0), to, 0, uint24(quantity))
+                _nextInitializedFlag(quantity) | _nextExtraData(address(0), to, 0)
             );
 
             // Updates:
@@ -804,8 +743,46 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
                 // that overflows uint256 will make the loop run out of gas.
             } while (++tokenId != end);
 
-            ERC721AStorage.layout()._currentIndex = currentIndex + quantity;
+            ERC721AStorage.layout()._currentIndex = end;
         }
+    }
+
+    /**
+     * @dev Safely mints `quantity` tokens and transfers them to `to`.
+     *
+     * Requirements:
+     *
+     * - If `to` refers to a smart contract, it must implement
+     * {IERC721Receiver-onERC721Received}, which is called for each safe transfer.
+     * - `quantity` must be greater than 0.
+     *
+     * See {_mint}.
+     *
+     * Emits a {Transfer} event for each mint.
+     */
+    function _safeMint(address to, uint256 quantity, bytes memory _data) internal virtual {
+        _mint(to, quantity);
+
+        unchecked {
+            if (to.code.length != 0) {
+                uint256 end = ERC721AStorage.layout()._currentIndex;
+                uint256 index = end - quantity;
+                do {
+                    if (!_checkContractOnERC721Received(address(0), to, index++, _data)) {
+                        _revert(TransferToNonERC721ReceiverImplementer.selector);
+                    }
+                } while (index < end);
+                // Reentrancy protection.
+                if (ERC721AStorage.layout()._currentIndex != end) _revert(bytes4(0));
+            }
+        }
+    }
+
+    /**
+     * @dev Equivalent to `_safeMint(to, quantity, '')`.
+     */
+    function _safeMint(address to, uint256 quantity) internal virtual {
+        _safeMint(to, quantity, "");
     }
 
     // =============================================================
@@ -832,11 +809,7 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
      *
      * Emits an {Approval} event.
      */
-    function _approve(
-        address to,
-        uint256 tokenId,
-        bool approvalCheck
-    ) internal virtual {
+    function _approve(address to, uint256 tokenId, bool approvalCheck) internal virtual {
         address owner = ownerOf(tokenId);
 
         if (approvalCheck && _msgSenderERC721A() != owner)
@@ -909,7 +882,7 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
             // - `nextInitialized` to `true`.
             ERC721AStorage.layout()._packedOwnerships[tokenId] = _packOwnershipData(
                 from,
-                (_BITMASK_BURNED | _BITMASK_NEXT_INITIALIZED) | _nextExtraData(from, address(0), prevOwnershipPacked, 0)
+                (_BITMASK_BURNED | _BITMASK_NEXT_INITIALIZED) | _nextExtraData(from, address(0), prevOwnershipPacked)
             );
 
             // If the next slot may not have been initialized (i.e. `nextInitialized == false`) .
@@ -917,18 +890,17 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
                 uint256 nextTokenId = tokenId + 1;
                 // If the next slot's address is zero and not burned (i.e. packed value is zero).
                 if (ERC721AStorage.layout()._packedOwnerships[nextTokenId] == 0) {
-                    // If the next slot exists
-                    if (_minted(nextTokenId)) {
+                    // If the next slot is within bounds.
+                    if (nextTokenId != ERC721AStorage.layout()._currentIndex) {
                         // Initialize the next slot to maintain correctness for `ownerOf(tokenId + 1)`.
-
-                        // remove mint quantity to preserve original mint spots
-                        ERC721AStorage.layout()._packedOwnerships[nextTokenId] = _removeExtraData(prevOwnershipPacked);
+                        ERC721AStorage.layout()._packedOwnerships[nextTokenId] = prevOwnershipPacked;
                     }
                 }
             }
         }
 
         emit Transfer(from, address(0), tokenId);
+
         // Overflow not possible, as _burnCounter cannot be exceed _currentIndex times.
         unchecked {
             ERC721AStorage.layout()._burnCounter++;
@@ -938,13 +910,6 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
     // =============================================================
     //                     EXTRA DATA OPERATIONS
     // =============================================================
-
-    /**
-     * @dev Remove the extra data from a packed ownership, used to preserve original mint slots
-     */
-    function _removeExtraData(uint256 packedOwnershipData) internal pure returns (uint256) {
-        return packedOwnershipData & _BITMASK_EXTRA_DATA_COMPLEMENT;
-    }
 
     /**
      * @dev Directly sets the extra data for the ownership data `index`.
@@ -975,32 +940,15 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable {
      * - When `to` is zero, `tokenId` will be burned by `from`.
      * - `from` and `to` are never both zero.
      */
-    function _extraData(
-        address from,
-        address to,
-        uint24 previousExtraData,
-        uint24 quantityMinted
-    ) internal view virtual returns (uint24) {
-        if (from == address(0) && to != address(0)) {
-            // mint
-            return quantityMinted;
-        } else {
-            return previousExtraData;
-        }
-    }
+    function _extraData(address from, address to, uint24 previousExtraData) internal view virtual returns (uint24) {}
 
     /**
      * @dev Returns the next extra data for the packed ownership data.
      * The returned result is shifted into position.
      */
-    function _nextExtraData(
-        address from,
-        address to,
-        uint256 prevOwnershipPacked,
-        uint24 quantityMinted
-    ) private view returns (uint256) {
+    function _nextExtraData(address from, address to, uint256 prevOwnershipPacked) private view returns (uint256) {
         uint24 extraData = uint24(prevOwnershipPacked >> _BITPOS_EXTRA_DATA);
-        return uint256(_extraData(from, to, extraData, quantityMinted)) << _BITPOS_EXTRA_DATA;
+        return uint256(_extraData(from, to, extraData)) << _BITPOS_EXTRA_DATA;
     }
 
     // =============================================================

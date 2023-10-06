@@ -15,6 +15,7 @@ import {
 
 /* eslint-disable prefer-const */
 import {
+  DEFAULT_ONCHAIN_MINT_VECTOR,
   generateClaim,
   setupGeneral,
   setupMultipleEdition,
