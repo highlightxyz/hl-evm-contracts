@@ -15,10 +15,11 @@
     ],
     "reason-string": ["warn", { "maxLength": 64 }],
     "ordering": "warn",
-    "private-vars-leading-underscore": "error",
+    "private-vars-leading-underscore": "off",
     "func-name-mixedcase": "off",
     "avoid-throw": "off",
     "avoid-suicide": "error",
-    "avoid-sha3": "warn"
+    "avoid-sha3": "warn",
+    "no-global-import": "off"
   }
 }
