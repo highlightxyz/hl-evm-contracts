@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.10;
 
-import "../mint/MintManager.sol";
+import "../DiscreteDutchAuctionMechanic.sol";
 
 /**
  * @author highlight.xyz
- * @dev Mock MintManager
+ * @dev Mock DiscreteDutchAuctionMechanic
  */
-contract TestMintManager is MintManager {
+contract TestDiscreteDutchAuctionMechanic is DiscreteDutchAuctionMechanic {
     /**
      * @dev Test function to test upgrades
      */

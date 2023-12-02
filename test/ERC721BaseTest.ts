@@ -297,6 +297,7 @@ describe("ERC721 Base functionality", () => {
             emr.address,
             editionsOwner,
             null,
+            null,
             ownerOnlyTokenManager.address,
           );
 
@@ -713,6 +714,7 @@ describe("ERC721 Base functionality", () => {
             100,
             "name",
             "SYM",
+            null,
             null,
             false,
             ownerOnlyTokenManager.address,

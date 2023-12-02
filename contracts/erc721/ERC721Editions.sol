@@ -15,6 +15,7 @@ import "./interfaces/IERC721EditionMint.sol";
 import "./MarketplaceFilterer/MarketplaceFiltererAbridged.sol";
 import "../utils/ERC721/ERC721Upgradeable.sol";
 import "../mint/interfaces/IAbridgedMintVector.sol";
+import "../mint/mechanics/interfaces/IMechanicMintManager.sol";
 
 /**
  * @title ERC721 Editions
@@ -199,6 +200,47 @@ contract ERC721Editions is
                     false,
                     allowlistRoot
                 )
+            );
+        }
+
+        return editionId;
+    }
+
+    /**
+     * @notice Create edition with a mechanic vector
+     * @param _editionInfo Info of the Edition
+     * @param _editionSize Size of the Edition
+     * @param _editionTokenManager Edition's token manager
+     * @param editionRoyalty Edition royalty object for contract (optional)
+     * @param mechanicVectorData Mechanic mint vector data
+     * @ param mechanicVectorId Global mechanic vector ID
+     * @ param mechanic Mechanic address
+     * @ param mintManager Mint manager address
+     * @ param vectorData Vector data
+     * @notice Used to create a new Edition within the Collection
+     */
+    function createEditionWithMechanicVector(
+        bytes memory _editionInfo,
+        uint256 _editionSize,
+        address _editionTokenManager,
+        IRoyaltyManager.Royalty memory editionRoyalty,
+        bytes calldata mechanicVectorData
+    ) external onlyOwner nonReentrant returns (uint256) {
+        uint256 editionId = _createEdition(_editionInfo, _editionSize, _editionTokenManager);
+        if (editionRoyalty.recipientAddress != address(0)) {
+            _royalties[editionId] = editionRoyalty;
+        }
+
+        if (mechanicVectorData.length != 0) {
+            (uint96 seed, address mechanic, address mintManager, bytes memory vectorData) = abi.decode(
+                mechanicVectorData,
+                (uint96, address, address, bytes)
+            );
+
+            IMechanicMintManager(mintManager).registerMechanicVector(
+                IMechanicData.MechanicVectorMetadata(address(this), uint96(editionId), mechanic, true, false, false),
+                seed,
+                vectorData
             );
         }
 

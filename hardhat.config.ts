@@ -20,7 +20,7 @@ if (!chainAccounts) {
   throw new Error("Please setup accounts.json by running `cp sample.accounts.json accounts.json`");
 }
 
-const chainIds = {
+export const chainIds = {
   local: 1337,
   mainnet: 1,
   "polygon-mainnet": 137,
@@ -44,7 +44,7 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
   };
 }
 
-function getUrl(chain: keyof typeof chainIds): string {
+export function getUrl(chain: keyof typeof chainIds): string {
   if (chain === "arbitrum") {
     return "https://arb-mainnet.g.alchemy.com/v2/6RXKTS3PtSM59L41inqVagpZW3-r_rq9";
   } else if (chain === "arbitrum-goerli") {

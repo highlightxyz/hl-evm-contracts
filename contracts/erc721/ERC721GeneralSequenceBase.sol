@@ -5,15 +5,16 @@ import "./ERC721Base.sol";
 import "../metadata/MetadataEncryption.sol";
 import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
-import "./interfaces/IERC721GeneralMint.sol";
+import "./interfaces/IERC721GeneralSequenceMint.sol";
 import "./erc721a/ERC721AURIStorageUpgradeable.sol";
+import "./custom/interfaces/IHighlightRenderer.sol";
 
 /**
  * @title Generalized Base ERC721
  * @author highlight.xyz
  * @notice Generalized Base NFT smart contract
  */
-abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgradeable, IERC721GeneralMint {
+abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgradeable, IERC721GeneralSequenceMint {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /**
@@ -42,6 +43,16 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
     error EmptyString();
 
     /**
+     * @notice Custom renderer config, used for collections where metadata is rendered "in-chain"
+     * @param renderer Renderer address
+     * @param processMintDataOnRenderer If true, process mint data on renderer
+     */
+    struct CustomRendererConfig {
+        address renderer;
+        bool processMintDataOnRenderer;
+    }
+
+    /**
      * @notice Contract metadata
      */
     string public contractURI;
@@ -50,6 +61,11 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
      * @notice Limit the supply to take advantage of over-promising in summation with multiple mint vectors
      */
     uint256 public limitSupply;
+
+    /**
+     * @notice Custom renderer config
+     */
+    CustomRendererConfig public customRendererConfig;
 
     /**
      * @notice Emitted when uris are set for tokens
@@ -67,7 +83,7 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
     /**
      * @notice See {IERC721GeneralMint-mintOneToOneRecipient}
      */
-    function mintOneToOneRecipient(address recipient) external onlyMinter nonReentrant returns (uint256) {
+    function mintOneToOneRecipient(address recipient) external virtual onlyMinter nonReentrant returns (uint256) {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -77,13 +93,19 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
 
         _mint(recipient, 1);
 
+        // process mint on custom renderer if present
+        CustomRendererConfig memory _customRendererConfig = customRendererConfig;
+        if (_customRendererConfig.processMintDataOnRenderer) {
+            IHighlightRenderer(_customRendererConfig.renderer).processOneRecipientMint(tempSupply, 1, recipient);
+        }
+
         return tempSupply;
     }
 
     /**
      * @notice See {IERC721GeneralMint-mintAmountToOneRecipient}
      */
-    function mintAmountToOneRecipient(address recipient, uint256 amount) external onlyMinter nonReentrant {
+    function mintAmountToOneRecipient(address recipient, uint256 amount) external virtual onlyMinter nonReentrant {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
@@ -92,6 +114,16 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
         _mint(recipient, amount);
 
         _requireLimitSupply(tempSupply + amount);
+
+        // process mint on custom renderer if present
+        CustomRendererConfig memory _customRendererConfig = customRendererConfig;
+        if (_customRendererConfig.processMintDataOnRenderer) {
+            IHighlightRenderer(_customRendererConfig.renderer).processOneRecipientMint(
+                tempSupply + 1,
+                amount,
+                recipient
+            );
+        }
     }
 
     /**
@@ -109,6 +141,16 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
         }
 
         _requireLimitSupply(tempSupply + recipientsLength);
+
+        // process mint on custom renderer if present
+        CustomRendererConfig memory _customRendererConfig = customRendererConfig;
+        if (_customRendererConfig.processMintDataOnRenderer) {
+            IHighlightRenderer(_customRendererConfig.renderer).processMultipleRecipientMint(
+                tempSupply + 1,
+                1,
+                recipients
+            );
+        }
     }
 
     /**
@@ -129,23 +171,26 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
         }
 
         _requireLimitSupply(tempSupply + recipientsLength * amount);
+
+        // process mint on custom renderer if present
+        CustomRendererConfig memory _customRendererConfig = customRendererConfig;
+        if (_customRendererConfig.processMintDataOnRenderer) {
+            IHighlightRenderer(_customRendererConfig.renderer).processMultipleRecipientMint(
+                tempSupply + 1,
+                amount,
+                recipients
+            );
+        }
     }
 
-    /* solhint-disable no-empty-blocks */
-
     /**
-     * @notice Mint a chosen token id to a single recipient
-     * @dev Unavailable for ERC721GeneralSequenceBase, keep interface adhered for backwards compatiblity
+     * @notice Set custom renderer and processing config
+     * @param _customRendererConfig New custom renderer config
      */
-    function mintSpecificTokenToOneRecipient(address recipient, uint256 tokenId) external {}
-
-    /**
-     * @notice Mint chosen token ids to a single recipient
-     * @dev Unavailable for ERC721GeneralSequenceBase, keep interface adhered for backwards compatiblity
-     */
-    function mintSpecificTokensToOneRecipient(address recipient, uint256[] calldata tokenIds) external {}
-
-    /* solhint-enable no-empty-blocks */
+    function setCustomRenderer(CustomRendererConfig calldata _customRendererConfig) external onlyOwner {
+        require(_customRendererConfig.renderer != address(0), "Invalid input");
+        customRendererConfig = _customRendererConfig;
+    }
 
     /**
      * @notice Override base URI system for select tokens, with custom per-token metadata
@@ -221,6 +266,13 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
     }
 
     /**
+     * @notice Return the total number of minted tokens on the collection
+     */
+    function supply() external view returns (uint256) {
+        return ERC721AUpgradeable._totalMinted();
+    }
+
+    /**
      * @notice See {IERC721-burn}. Overrides default behaviour to check associated tokenManager.
      */
     function burn(uint256 tokenId) public nonReentrant {
@@ -247,6 +299,9 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
      * @param tokenId ID of token to get uri for
      */
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+        if (customRendererConfig.renderer != address(0)) {
+            return IHighlightRenderer(customRendererConfig.renderer).tokenURI(tokenId);
+        }
         return ERC721AURIStorageUpgradeable.tokenURI(tokenId);
     }
 
@@ -322,7 +377,7 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
      * @notice Require the new supply of tokens after mint to be less than limit supply
      * @param newSupply New supply
      */
-    function _requireLimitSupply(uint256 newSupply) private view {
+    function _requireLimitSupply(uint256 newSupply) internal view {
         uint256 _limitSupply = limitSupply;
         if (_limitSupply != 0 && newSupply > _limitSupply) {
             _revert(OverLimitSupply.selector);

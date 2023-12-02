@@ -1,9 +1,11 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { BigNumber } from "ethers";
+import { BigNumber, BytesLike } from "ethers";
 import { ethers } from "hardhat";
 
 import {
   AuctionManager__factory,
+  DiscreteDutchAuctionMechanic,
+  DiscreteDutchAuctionMechanic__factory,
   ERC721Editions,
   ERC721EditionsDFS,
   ERC721EditionsDFS__factory,
@@ -22,6 +24,7 @@ import {
   NativeMetaTransaction__factory,
   Observability__factory,
 } from "../../types";
+import { DutchAuctionUpdateValues } from "./data";
 import { signGatedMint, signGatedMintWithMetaTxPacket, signGatedSeriesMint, signWETHMetaTxRequest } from "./mint";
 
 export type OnchainMintVectorParams = {
@@ -33,6 +36,18 @@ export type OnchainMintVectorParams = {
   maxUserClaimableViaVector: number;
   allowlistRoot: string;
   editionId?: number;
+};
+
+export type OnchainDutchAuctionParams = {
+  startTimestamp: number;
+  endTimestamp: number;
+  prices: string[];
+  periodDuration: number;
+  tokenLimitPerTx: number;
+  maxTotalClaimableViaVector: number;
+  maxUserClaimableViaVector: number;
+  mechanicAddress: string;
+  seed: string;
 };
 
 export const DEFAULT_ONCHAIN_MINT_VECTOR: OnchainMintVectorParams = {
@@ -56,6 +71,7 @@ export const setupSingleEdition = async (
   name: string,
   symbol: string,
   directMint: OnchainMintVectorParams | null = null,
+  mechanicMint: OnchainDutchAuctionParams | null = null,
   useMarketplaceFilter = false,
   defaultTokenManager = ethers.constants.AddressZero,
   royaltyRecipient = ethers.constants.AddressZero,
@@ -122,7 +138,13 @@ export const setupSingleEdition = async (
 
   const SingleEdition = await (
     await ethers.getContractFactory("SingleEdition")
-  ).deploy(singleImplementationAddress, initializeData, mintVectorData, observabilityAddress);
+  ).deploy(
+    singleImplementationAddress,
+    initializeData,
+    mintVectorData,
+    encodeMechanicVectorData(mintManagerAddress, creator.address, mechanicMint),
+    observabilityAddress,
+  );
   const singleEdition = await SingleEdition.deployed();
   return ERC721SingleEdition__factory.connect(singleEdition.address, creator);
 };
@@ -137,6 +159,7 @@ export const setupSingleEditionDFS = async (
   name: string,
   symbol: string,
   directMint: OnchainMintVectorParams | null = null,
+  mechanicMint: OnchainDutchAuctionParams | null = null,
   useMarketplaceFilter = false,
   defaultTokenManager = ethers.constants.AddressZero,
   royaltyRecipient = ethers.constants.AddressZero,
@@ -192,7 +215,13 @@ export const setupSingleEditionDFS = async (
 
   const SingleEditionDFS = await (
     await ethers.getContractFactory("SingleEditionDFS")
-  ).deploy(singleEditionDFSImplementationAddress, initializeData, mintVectorData, observabilityAddress);
+  ).deploy(
+    singleEditionDFSImplementationAddress,
+    initializeData,
+    mintVectorData,
+    encodeMechanicVectorData(mintManagerAddress, creator.address, mechanicMint),
+    observabilityAddress,
+  );
   const singleEditionDFS = await SingleEditionDFS.deployed();
   return ERC721SingleEditionDFS__factory.connect(singleEditionDFS.address, creator);
 };
@@ -207,6 +236,7 @@ export const setupEditions = async (
   emrAddress: string,
   creator: SignerWithAddress,
   directMint: OnchainMintVectorParams | null = null,
+  mechanicMint: OnchainDutchAuctionParams | null = null,
   defaultTokenManager = ethers.constants.AddressZero,
   royaltyRecipient = ethers.constants.AddressZero,
   royaltyPercentage = 0,
@@ -261,6 +291,7 @@ export const setupEditions = async (
     },
     ethers.utils.arrayify("0x"),
     mintVectorData,
+    encodeMechanicVectorData(mintManagerAddress, creator.address, mechanicMint),
   );
   const multipleEditions = await MultipleEditions.deployed();
 
@@ -283,6 +314,7 @@ export const setupEditionsDFS = async (
   trustedForwarderAddress: string,
   creator: SignerWithAddress,
   directMint: OnchainMintVectorParams | null = null,
+  mechanicMint: OnchainDutchAuctionParams | null = null,
   editionUri = "",
   defaultTokenManager = ethers.constants.AddressZero,
   royaltyRecipient = ethers.constants.AddressZero,
@@ -337,6 +369,7 @@ export const setupEditionsDFS = async (
     },
     ethers.utils.arrayify("0x"),
     mintVectorData,
+    encodeMechanicVectorData(mintManagerAddress, creator.address, mechanicMint),
   );
   const multipleEditionsDFS = await MultipleEditionsDFS.deployed();
 
@@ -363,6 +396,7 @@ export const setupMultipleEdition = async (
   name: string,
   symbol: string,
   directMint: OnchainMintVectorParams | null = null,
+  mechanicMint: OnchainDutchAuctionParams | null = null,
   useMarketplaceFilter = false,
   contractName = "contractName",
   royaltyPercentage = 0,
@@ -425,6 +459,7 @@ export const setupMultipleEdition = async (
     },
     ethers.utils.arrayify("0x"),
     mintVectorData,
+    encodeMechanicVectorData(mintVectorAddress, creator.address, mechanicMint),
   );
   const multipleEditions = await MultipleEditions.deployed();
 
@@ -442,6 +477,7 @@ export const setupMultipleEditionDFS = async (
   size: number,
   symbol: string,
   directMint: OnchainMintVectorParams | null = null,
+  mechanicMint: OnchainDutchAuctionParams | null = null,
   editionUri: string = "uri",
   useMarketplaceFilter = false,
   contractName = "contractName",
@@ -494,6 +530,7 @@ export const setupMultipleEditionDFS = async (
     },
     ethers.utils.arrayify("0x"),
     mintVectorData,
+    encodeMechanicVectorData(mintVectorAddress, creator.address, mechanicMint),
   );
   const multipleEditionsDFS = await MultipleEditionsDFS.deployed();
 
@@ -643,6 +680,8 @@ export const setupGeneral = async (
   mintManagerAddress: string,
   creator: SignerWithAddress,
   directMint: OnchainMintVectorParams | null = null,
+  mechanicMint: OnchainDutchAuctionParams | null = null,
+  isCollectorsChoice: boolean = false,
   useMarketplaceFilter = false,
   limitSupply = 0,
   defaultTokenManager = ethers.constants.AddressZero,
@@ -703,7 +742,13 @@ export const setupGeneral = async (
 
   const Series = await (
     await ethers.getContractFactory("Series", creator)
-  ).deploy(generalImplementationAddress, initializeData, vectorData);
+  ).deploy(
+    generalImplementationAddress,
+    initializeData,
+    vectorData,
+    encodeMechanicVectorData(mintManagerAddress, creator.address, mechanicMint),
+    isCollectorsChoice,
+  );
   const series = await Series.deployed();
 
   return ERC721General__factory.connect(series.address, creator);
@@ -716,6 +761,7 @@ export const setupGenerative = async (
   mintManagerAddress: string,
   creator: SignerWithAddress,
   directMint: OnchainMintVectorParams | null = null,
+  mechanicMint: OnchainDutchAuctionParams | null = null,
   useMarketplaceFilter = false,
   limitSupply = 0,
   defaultTokenManager = ethers.constants.AddressZero,
@@ -777,7 +823,13 @@ export const setupGenerative = async (
 
   const GenerativeSeries = await (
     await ethers.getContractFactory("GenerativeSeries", creator)
-  ).deploy(generalImplementationAddress, initializeData, vectorData, observabilityAddress);
+  ).deploy(
+    generalImplementationAddress,
+    initializeData,
+    vectorData,
+    encodeMechanicVectorData(mintManagerAddress, creator.address, mechanicMint),
+    observabilityAddress,
+  );
   const generativeSeries = await GenerativeSeries.deployed();
 
   return ERC721Generative__factory.connect(generativeSeries.address, creator);
@@ -853,6 +905,7 @@ export const setupEtherAuctionWithNewToken = async (
     { recipientAddress: royaltyRecipient, royaltyPercentageBPS: royaltyPercentage },
     auctionData,
     mintVectorData,
+    "0x",
   );
   const multipleEditions = await MultipleEditions.deployed();
 
@@ -950,12 +1003,25 @@ export async function setupSystem(
   const observability = await observabilityFactory.deploy();
   await observability.deployed();
 
+  const dutchAuctionImplFactory = await ethers.getContractFactory("DiscreteDutchAuctionMechanic");
+  const dutchAuctionImpl = await dutchAuctionImplFactory.deploy();
+  await dutchAuctionImpl.deployed();
+
+  const dutchAuctionEncodedFn = dutchAuctionImpl.interface.encodeFunctionData("initialize", [
+    mintManagerProxy.address,
+    mintManagerOwnerAddress,
+  ]);
+  const dutchAuctionFactory = await ethers.getContractFactory("ERC1967Proxy");
+  const dutchAuction = await dutchAuctionFactory.deploy(dutchAuctionImpl.address, dutchAuctionEncodedFn);
+  await dutchAuction.deployed();
+
   return {
     emrProxy: EditionsMetadataRenderer__factory.connect(emrProxy.address, signer),
     mintManagerProxy: MintManager__factory.connect(mintManagerProxy.address, signer),
     auctionManagerProxy: AuctionManager__factory.connect(auctionManagerProxy.address, signer),
     minimalForwarder: MinimalForwarder__factory.connect(minimalForwarder.address, signer),
     observability: Observability__factory.connect(observability.address, signer),
+    daMechanic: DiscreteDutchAuctionMechanic__factory.connect(dutchAuction.address, signer),
     generalImplementationAddress: general.address,
     generalSequenceImplementationAddress: generalSequence.address,
     generativeImplementationAddress: generative.address,
@@ -965,6 +1031,136 @@ export async function setupSystem(
     singleEditionDFSImplementationAddress: singleEditionDFS.address,
   };
 }
+
+export const encodeMechanicVectorData = (
+  mintManagerAddress: string,
+  paymentRecipient: string,
+  mechanicMint: OnchainDutchAuctionParams | null,
+): BytesLike => {
+  let mechanicVectorData = "0x";
+  if (mechanicMint) {
+    const dutchAuctionData = encodeDAVectorData(mechanicMint, paymentRecipient);
+
+    mechanicVectorData = ethers.utils.defaultAbiCoder.encode(
+      ["uint96", "address", "address", "bytes"],
+      [mechanicMint.seed, mechanicMint.mechanicAddress, mintManagerAddress, dutchAuctionData],
+    );
+  }
+
+  return mechanicVectorData;
+};
+
+export const encodeDAVectorData = (mechanicMint: OnchainDutchAuctionParams, paymentRecipient: string): BytesLike => {
+  const { packedPrices, numPrices, bytesPerPrice } = encodeDutchAuctionPriceData(mechanicMint.prices);
+
+  return ethers.utils.defaultAbiCoder.encode(
+    ["uint48", "uint48", "uint32", "uint32", "uint48", "uint32", "uint32", "uint8", "address", "bytes"],
+    [
+      mechanicMint.startTimestamp,
+      mechanicMint.endTimestamp,
+      mechanicMint.periodDuration,
+      mechanicMint.maxUserClaimableViaVector,
+      mechanicMint.maxTotalClaimableViaVector,
+      mechanicMint.tokenLimitPerTx,
+      numPrices,
+      bytesPerPrice,
+      paymentRecipient,
+      packedPrices,
+    ],
+  );
+};
+
+export const encodeDutchAuctionPriceData = (
+  prices: string[],
+): { packedPrices: BytesLike; numPrices: number; bytesPerPrice: number } => {
+  if (prices.length == 0) {
+    return { packedPrices: "0x", numPrices: 0, bytesPerPrice: 0 };
+  }
+
+  // expect in ether, expect 10^18, convert to wei
+  let biggestPrice = ethers.utils.parseEther(prices[0]);
+  for (const price of prices) {
+    if (ethers.utils.parseEther(price).gt(biggestPrice)) {
+      biggestPrice = ethers.utils.parseEther(price);
+    }
+  }
+
+  const bytesPerPrice = numBytesNeeded(biggestPrice);
+  const packedPrices = ethers.utils.solidityPack(
+    new Array(prices.length).fill(`uint${bytesPerPrice * 8}`),
+    prices.map(price => {
+      return ethers.utils.parseEther(price);
+    }),
+  );
+
+  return {
+    packedPrices,
+    numPrices: prices.length,
+    bytesPerPrice,
+  };
+};
+
+export const dutchAuctionUpdateArgs = (
+  updateValues: DutchAuctionUpdateValues,
+): {
+  dutchAuction: DiscreteDutchAuctionMechanic.DutchAuctionVectorStruct;
+  updateConfig: DiscreteDutchAuctionMechanic.DutchAuctionVectorUpdateConfigStruct;
+  packedPrices: BytesLike;
+} => {
+  // if prices isn't updated, this returns 0 values for each field
+  const { numPrices, bytesPerPrice, packedPrices } = encodeDutchAuctionPriceData(updateValues.prices ?? []);
+
+  const dutchAuction = {
+    startTimestamp: updateValues.startTimestamp ?? 0,
+    endTimestamp: updateValues.endTimestamp ?? 0,
+    periodDuration: updateValues.periodDuration ?? 0,
+    maxUserClaimableViaVector: updateValues.maxUserClaimableViaVector ?? 0,
+    maxTotalClaimableViaVector: updateValues.maxTotalClaimableViaVector ?? 0,
+    currentSupply: 0,
+    lowestPriceSoldAtIndex: 0,
+    tokenLimitPerTx: updateValues.tokenLimitPerTx ?? 0,
+    numPrices,
+    paymentRecipient: updateValues.paymentRecipient ?? ethers.constants.AddressZero,
+    totalSales: 0,
+    bytesPerPrice,
+    auctionExhausted: false,
+    payeeRevenueHasBeenWithdrawn: false,
+  };
+  const updateConfig = {
+    updateStartTimestamp: updateValues.startTimestamp != undefined,
+    updateEndTimestamp: updateValues.endTimestamp != undefined,
+    updatePaymentRecipient: updateValues.paymentRecipient != undefined,
+    updateMaxTotalClaimableViaVector: updateValues.maxTotalClaimableViaVector != undefined,
+    updateTokenLimitPerTx: updateValues.tokenLimitPerTx != undefined,
+    updateMaxUserClaimableViaVector: updateValues.maxUserClaimableViaVector != undefined,
+    updatePrices: updateValues.prices != undefined,
+    updatePeriodDuration: updateValues.periodDuration != undefined,
+  };
+
+  return {
+    dutchAuction,
+    updateConfig,
+    packedPrices,
+  };
+};
+
+const numBytesNeeded = (num: BigNumber) => {
+  const log10 = num.toString().length - 1;
+  const log2 = log10 / Math.log10(2); // convert log10 to log2 using the base change formula
+  return Math.floor(log2 / 8) + 1;
+};
+
+export const produceMechanicVectorId = (
+  contractAddress: string,
+  mechanicAddress: string,
+  seed: number,
+  editionId?: number,
+): string => {
+  return ethers.utils.solidityKeccak256(
+    ["address", "uint96", "address", "bool", "uint96"],
+    [contractAddress, editionId ?? 0, mechanicAddress, editionId != undefined, seed],
+  );
+};
 
 export const hourFromNow = () => {
   return Math.floor(Date.now() / 1000 + 3600);

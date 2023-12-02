@@ -2,6 +2,7 @@
 pragma solidity 0.8.10;
 
 import "../../mint/interfaces/IAbridgedMintVector.sol";
+import "../../mint/mechanics/interfaces/IMechanicMintManager.sol";
 import "@openzeppelin/contracts/proxy/Proxy.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/StorageSlot.sol";
@@ -37,8 +38,20 @@ contract Series is Proxy {
      * @ param maxTotalClaimableViaVector
      * @ param maxUserClaimableViaVector
      * @ param allowlistRoot
+     * @param mechanicVectorData Mechanic mint vector data
+     * @ param mechanicVectorId Global mechanic vector ID
+     * @ param mechanic Mechanic address
+     * @ param mintManager Mint manager address
+     * @ param vectorData Vector data
+     * @param isCollectorsChoice True if series will have collector's choice based minting
      */
-    constructor(address implementation_, bytes memory initializeData, bytes memory mintVectorData) {
+    constructor(
+        address implementation_,
+        bytes memory initializeData,
+        bytes memory mintVectorData,
+        bytes memory mechanicVectorData,
+        bool isCollectorsChoice
+    ) {
         assert(_IMPLEMENTATION_SLOT == bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1));
         StorageSlot.getAddressSlot(_IMPLEMENTATION_SLOT).value = implementation_;
         Address.functionDelegateCall(implementation_, abi.encodeWithSignature("initialize(bytes)", initializeData));
@@ -78,13 +91,26 @@ contract Series is Proxy {
                 )
             );
         }
+
+        if (mechanicVectorData.length != 0) {
+            (uint96 seed, address mechanic, address mintManager, bytes memory vectorData) = abi.decode(
+                mechanicVectorData,
+                (uint96, address, address, bytes)
+            );
+
+            IMechanicMintManager(mintManager).registerMechanicVector(
+                IMechanicData.MechanicVectorMetadata(address(this), 0, mechanic, false, isCollectorsChoice, false),
+                seed,
+                vectorData
+            );
+        }
     }
 
     /**
      * @notice Return the contract type
      */
     function standard() external pure returns (string memory) {
-        return "Series";
+        return "Series2";
     }
 
     /**

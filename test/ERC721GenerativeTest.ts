@@ -3,7 +3,11 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 
 import {
-  ERC721General,
+  BitRotGenerative,
+  BitRotGenerativeTest,
+  BitRotGenerativeTest__factory,
+  BitRotGenerative__factory,
+  ERC721GeneralSequence,
   ERC721GenerativeOnchain,
   ERC721GenerativeOnchain__factory,
   FileDeployer,
@@ -11,6 +15,7 @@ import {
   MintManager,
   Observability,
   OwnerOnlyTokenManager,
+  TestHighlightRenderer,
   TotalLockedTokenManager,
 } from "../types";
 import { Errors } from "./__utils__/data";
@@ -19,7 +24,7 @@ import { DEFAULT_ONCHAIN_MINT_VECTOR, setupGenerative, setupSystem } from "./__u
 describe("ERC721Generative functionality", () => {
   let totalLockedTokenManager: TotalLockedTokenManager;
   let ownerOnlyTokenManager: OwnerOnlyTokenManager;
-  let generative: ERC721General;
+  let generative: ERC721GeneralSequence;
   let initialPlatformExecutor: SignerWithAddress,
     mintManagerOwner: SignerWithAddress,
     editionsMetadataOwner: SignerWithAddress,
@@ -547,6 +552,7 @@ describe("ERC721Generative functionality", () => {
       mintManager.address,
       owner,
       { ...DEFAULT_ONCHAIN_MINT_VECTOR, maxUserClaimableViaVector: 2 },
+      null,
       false,
       0,
       ethers.constants.AddressZero,
@@ -574,13 +580,11 @@ describe("ERC721Generative functionality", () => {
       DEFAULT_ONCHAIN_MINT_VECTOR.allowlistRoot,
     ]);
 
-    await expect(
-      mintManager.vectorMintSeries721(1, 2, owner.address, { value: ethers.utils.parseEther("0.0008").mul(2) }),
-    )
+    await expect(mintManager.vectorMint721(1, 2, owner.address, { value: ethers.utils.parseEther("0.0008").mul(2) }))
       .to.emit(mintManager, "NumTokenMint")
       .withArgs(ethers.utils.hexZeroPad(ethers.utils.hexlify(1), 32), generative.address, true, 2);
 
-    await expect(mintManager.vectorMintSeries721(1, 1, owner.address)).to.be.revertedWithCustomError(
+    await expect(mintManager.vectorMint721(1, 1, owner.address)).to.be.revertedWithCustomError(
       mintManager,
       "OnchainVectorMintGuardFailed",
     );
@@ -770,6 +774,113 @@ describe("ERC721Generative functionality", () => {
 
       await expect(ocsERC721.removeFile("readBytecodeSnippet.sol")).to.not.be.reverted;
       expect(await ocsERC721.files()).to.eql(["revertSnippet.sol", "readBytecodeSnippet2.sol"]);
+    });
+  });
+
+  describe("Custom", function () {
+    let bitRotTest: BitRotGenerativeTest;
+    let bitRotGenerative: BitRotGenerative;
+
+    before(async () => {
+      const bitRotGenerativeImpl = await (await ethers.getContractFactory("BitRotGenerative")).deploy();
+      bitRotGenerative = BitRotGenerative__factory.connect(
+        (
+          await setupGenerative(
+            observability.address,
+            bitRotGenerativeImpl.address,
+            trustedForwarder.address,
+            mintManager.address,
+            owner,
+          )
+        ).address,
+        owner,
+      );
+      bitRotTest = BitRotGenerativeTest__factory.connect(
+        (await (await ethers.getContractFactory("BitRotGenerativeTest")).deploy(bitRotGenerative.address)).address,
+        owner,
+      );
+      await expect(bitRotGenerative.registerMinter(bitRotTest.address)).to.not.be.reverted;
+    });
+
+    it("BitRot test passes", async function () {
+      await expect(bitRotTest.test()).to.not.be.reverted;
+    });
+  });
+
+  describe("Custom renderer", function () {
+    let testHighlightRenderer: TestHighlightRenderer;
+
+    beforeEach(async () => {
+      await expect(generative.registerMinter(owner.address)).to.emit(generative, "MinterRegistrationChanged");
+      const TestHighlightRenderer = await ethers.getContractFactory("TestHighlightRenderer");
+
+      testHighlightRenderer = await TestHighlightRenderer.deploy();
+      await testHighlightRenderer.deployed();
+    });
+
+    it("Only owner can set custom renderer config", async function () {
+      generative = generative.connect(fan1);
+      await expect(
+        generative.setCustomRenderer({
+          renderer: testHighlightRenderer.address,
+          processMintDataOnRenderer: true,
+        }),
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+
+    it("Invalid custom renderer config not allowed", async function () {
+      generative = generative.connect(owner);
+      await expect(
+        generative.setCustomRenderer({
+          renderer: ethers.constants.AddressZero,
+          processMintDataOnRenderer: true,
+        }),
+      ).to.be.revertedWith("Invalid input");
+    });
+
+    it("Custom renderer can process mint data, then re-use it on tokenURI query", async function () {
+      await expect(
+        generative.setCustomRenderer({
+          renderer: testHighlightRenderer.address,
+          processMintDataOnRenderer: true,
+        }),
+      ).to.not.be.reverted;
+
+      await expect(generative.mintOneToOneRecipient(owner.address)).to.not.be.reverted;
+      await expect(generative.mintAmountToOneRecipient(owner.address, 2)).to.not.be.reverted;
+      await expect(generative.mintOneToMultipleRecipients([owner.address, fan1.address])).to.not.be.reverted;
+      await expect(generative.mintSameAmountToMultipleRecipients([owner.address, fan1.address], 2)).to.not.be.reverted;
+
+      const tokenIds = Array.from({ length: 9 }, (_, i) => i + 1);
+      const seedDetailsPerToken = await Promise.all(
+        tokenIds.map(async tokenId => {
+          const seedDetails = await testHighlightRenderer.getSeedDetails(tokenId, 10, generative.address);
+          expect(seedDetails.blockTimestamp.eq(0)).to.be.false;
+
+          return { ...seedDetails, tokenId };
+        }),
+      );
+
+      await expect(
+        generative.setCustomRenderer({
+          renderer: testHighlightRenderer.address,
+          processMintDataOnRenderer: false,
+        }),
+      ).to.not.be.reverted;
+
+      await Promise.all(
+        seedDetailsPerToken.map(async seedDetails => {
+          const uri = await generative.tokenURI(seedDetails.tokenId);
+          const predictedUri = await testHighlightRenderer.concatenateSeedDetails(
+            {
+              previousBlockHash: seedDetails.previousBlockHash,
+              blockTimestamp: seedDetails.blockTimestamp,
+            },
+            seedDetails.tokenId,
+          );
+          expect(uri).to.equal(predictedUri);
+        }),
+      );
     });
   });
 });

@@ -687,13 +687,11 @@ describe("ERC721General functionality", () => {
       DEFAULT_ONCHAIN_MINT_VECTOR.allowlistRoot,
     ]);
 
-    await expect(
-      mintManager.vectorMintSeries721(1, 2, owner.address, { value: ethers.utils.parseEther("0.0008").mul(2) }),
-    )
+    await expect(mintManager.vectorMint721(1, 2, owner.address, { value: ethers.utils.parseEther("0.0008").mul(2) }))
       .to.emit(mintManager, "NumTokenMint")
       .withArgs(ethers.utils.hexZeroPad(ethers.utils.hexlify(1), 32), general.address, true, 2);
 
-    await expect(mintManager.vectorMintSeries721(1, 1, owner.address)).to.be.revertedWithCustomError(
+    await expect(mintManager.vectorMint721(1, 1, owner.address)).to.be.revertedWithCustomError(
       mintManager,
       "OnchainVectorMintGuardFailed",
     );
