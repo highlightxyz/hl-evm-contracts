@@ -1,6 +1,8 @@
 import { BigNumber } from "@ethersproject/contracts/node_modules/@ethersproject/bignumber";
 import { ethers } from "hardhat";
 
+import { OnchainDutchAuctionParams } from "./helpers";
+
 export const SAMPLE_VECTOR_1 = (
   address: string,
   paymentRecipient: string,
@@ -98,6 +100,43 @@ export const SAMPLE_ABRIDGED_VECTOR_UPDATE_CONFIG = ({
   };
 };
 
+export const SAMPLE_DA_VECTOR = (
+  mechanicAddress: string,
+  input: {
+    prices?: string[];
+    periodDuration?: number;
+    maxTotalClaimableViaVector?: number;
+    maxUserClaimableViaVector?: number;
+    startTimestamp?: number;
+    endTimestamp?: number;
+    tokenLimitPerTx?: number;
+    seed?: string;
+  },
+): OnchainDutchAuctionParams => {
+  return {
+    mechanicAddress,
+    prices: input.prices ?? ["0.001", "0.0001"],
+    periodDuration: input.periodDuration ?? 100,
+    maxTotalClaimableViaVector: input.maxTotalClaimableViaVector ?? 0,
+    maxUserClaimableViaVector: input.maxUserClaimableViaVector ?? 0,
+    startTimestamp: input.startTimestamp ?? Math.floor(Date.now() / 1000),
+    endTimestamp: input.endTimestamp ?? 0,
+    tokenLimitPerTx: input.tokenLimitPerTx ?? 0,
+    seed: input.seed ?? Math.floor(Date.now() / 1000).toString(),
+  };
+};
+
+export type DutchAuctionUpdateValues = {
+  prices?: string[];
+  periodDuration?: number;
+  maxTotalClaimableViaVector?: number;
+  maxUserClaimableViaVector?: number;
+  startTimestamp?: number;
+  endTimestamp?: number;
+  tokenLimitPerTx?: number;
+  paymentRecipient?: string;
+};
+
 export const SAMPLE_VECTOR_MUTABILITY_1 = (deleteFrozen = 0, pausesFrozen = 0, updatesFrozen = 0) => {
   return {
     deleteFrozen,
@@ -144,4 +183,12 @@ export enum Errors {
   TokenMintedAlready = "TokenMintedAlready",
   UnsafeMintRecipient = "UnsafeMintRecipient",
   MintPaused = "MintPaused",
+  MechanicPaused = "MechanicPaused",
+  InvalidMechanic = "InvalidMechanic",
+  InvalidVectorConfig = "InvalidVectorConfig",
+  InvalidUpdate = "InvalidUpdate",
+  InvalidMint = "InvalidMint",
+  InvalidRebate = "InvalidRebate",
+  CollectorNotOwedRebate = "CollectorNotOwedRebate",
+  InvalidDPPFundsWithdrawl = "InvalidDPPFundsWithdrawl",
 }

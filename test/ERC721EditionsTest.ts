@@ -691,14 +691,14 @@ describe("ERC721Editions functionality", () => {
     ]);
 
     await expect(
-      mintManager.vectorMintEdition721(1, 2, editionsOwner.address, {
+      mintManager.vectorMint721(1, 2, editionsOwner.address, {
         value: ethers.utils.parseEther("0.0008").mul(2),
       }),
     )
       .to.emit(mintManager, "NumTokenMint")
       .withArgs(ethers.utils.hexZeroPad(ethers.utils.hexlify(1), 32), editions.address, true, 2);
 
-    await expect(mintManager.vectorMintEdition721(1, 1, editionsOwner.address)).to.be.revertedWithCustomError(
+    await expect(mintManager.vectorMint721(1, 1, editionsOwner.address)).to.be.revertedWithCustomError(
       mintManager,
       "OnchainVectorMintGuardFailed",
     );
@@ -733,13 +733,11 @@ describe("ERC721Editions functionality", () => {
       .to.emit(mintManager, "EditionVectorCreated")
       .withArgs(2, 1, editions.address);
 
-    await expect(
-      mintManager.vectorMintEdition721(2, 1, editionsOwner.address, { value: ethers.utils.parseEther("0.0008") }),
-    )
+    await expect(mintManager.vectorMint721(2, 1, editionsOwner.address, { value: ethers.utils.parseEther("0.0008") }))
       .to.emit(mintManager, "NumTokenMint")
       .withArgs(ethers.utils.hexZeroPad(ethers.utils.hexlify(2), 32), editions.address, true, 1);
 
-    await expect(mintManager.vectorMintEdition721(2, 1, editionsOwner.address)).to.be.revertedWithCustomError(
+    await expect(mintManager.vectorMint721(2, 1, editionsOwner.address)).to.be.revertedWithCustomError(
       mintManager,
       "OnchainVectorMintGuardFailed",
     );

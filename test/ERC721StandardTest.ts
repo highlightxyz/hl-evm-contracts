@@ -1172,6 +1172,7 @@ describe("ERC721 Standard with token managers functionality", () => {
           "name",
           "SYM",
           null,
+          null,
           false,
           nonTransferableTokenManager.address,
         );
@@ -1222,6 +1223,7 @@ describe("ERC721 Standard with token managers functionality", () => {
           4,
           "name",
           "SYM",
+          null,
           null,
           false,
           consensualNonTransferableTokenManager.address,

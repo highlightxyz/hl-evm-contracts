@@ -4,11 +4,13 @@ import { ethers } from "hardhat";
 
 import {
   AuctionManager,
+  DiscreteDutchAuctionMechanic,
   ERC721Editions,
   EditionsMetadataRenderer,
   MinimalForwarder,
   MintManager,
   Observability,
+  TestDiscreteDutchAuctionMechanic,
   TestEditionsMetadataRenderer,
   TestMintManager,
 } from "../types";
@@ -30,6 +32,7 @@ describe("Upgrades functionality", () => {
 
   let emr: EditionsMetadataRenderer;
   let mintManager: MintManager;
+  let dutchAuction: DiscreteDutchAuctionMechanic;
   let observability: Observability;
   let auctionManager: AuctionManager;
   let trustedForwarder: MinimalForwarder;
@@ -50,6 +53,7 @@ describe("Upgrades functionality", () => {
       observability: observabilityInstance,
       auctionManagerProxy,
       editionsImplementationAddress,
+      daMechanic,
     } = await setupSystem(
       platformPaymentAddress.address,
       mintManagerOwner.address,
@@ -59,6 +63,7 @@ describe("Upgrades functionality", () => {
     );
 
     emr = emrProxy;
+    dutchAuction = daMechanic;
     mintManager = mintManagerProxy;
     trustedForwarder = minimalForwarder;
     observability = observabilityInstance;
@@ -127,7 +132,7 @@ describe("Upgrades functionality", () => {
         .withArgs(testMintManager.address);
 
       const newMintManager = new ethers.Contract(mintManager.address, testMintManager.interface, mintManagerOwner);
-      expect(await newMintManager.test()).to.equal("test");
+      expect(await newMintManager.test()).to.equal(true);
 
       // data after upgrade
       expect(await newMintManager.vectors(1)).to.eql(vectorOnOldImpl);
@@ -198,6 +203,60 @@ describe("Upgrades functionality", () => {
       // data after upgrade
       // expect(await newEditionsMetadataRenderer.editionInfo(editions.address, 0)).to.equal(editionOnOldEMR);
       expect(await newEditionsMetadataRenderer.owner()).to.equal(ownerOnOldEMR);
+    });
+  });
+
+  describe("DiscreteDutchAuctionMechanic", function () {
+    let testDiscreteDutchAuctionMechanic: TestDiscreteDutchAuctionMechanic;
+
+    it("Non owner cannot upgrade DiscreteDutchAuctionMechanic", async function () {
+      testDiscreteDutchAuctionMechanic = await (
+        await ethers.getContractFactory("TestDiscreteDutchAuctionMechanic")
+      ).deploy();
+      await testDiscreteDutchAuctionMechanic.deployed();
+
+      dutchAuction = dutchAuction.connect(owner);
+
+      await expect(dutchAuction.upgradeTo(testDiscreteDutchAuctionMechanic.address)).to.be.revertedWith(
+        "Ownable: caller is not the owner",
+      );
+
+      dutchAuction = dutchAuction.connect(editionsMetadataOwner);
+
+      await expect(dutchAuction.upgradeTo(testDiscreteDutchAuctionMechanic.address)).to.be.revertedWith(
+        "Ownable: caller is not the owner",
+      );
+
+      dutchAuction = dutchAuction.connect(fan1);
+
+      await expect(dutchAuction.upgradeTo(testDiscreteDutchAuctionMechanic.address)).to.be.revertedWith(
+        "Ownable: caller is not the owner",
+      );
+    });
+
+    it("Upgrade to TestDiscreteDutchAuctionMechanic retains original data and introduces new functionality", async function () {
+      dutchAuction = dutchAuction.connect(mintManagerOwner);
+      // data before upgrade
+      const ownerOnOldMechanic = await dutchAuction.owner();
+
+      testDiscreteDutchAuctionMechanic = await (
+        await ethers.getContractFactory("TestDiscreteDutchAuctionMechanic")
+      ).deploy();
+      await testDiscreteDutchAuctionMechanic.deployed();
+
+      await expect(dutchAuction.upgradeTo(testDiscreteDutchAuctionMechanic.address))
+        .to.emit(dutchAuction, "Upgraded")
+        .withArgs(testDiscreteDutchAuctionMechanic.address);
+
+      const newDiscreteDutchAuctionMechanic = new ethers.Contract(
+        dutchAuction.address,
+        testDiscreteDutchAuctionMechanic.interface,
+        mintManagerOwner,
+      );
+      expect(await newDiscreteDutchAuctionMechanic.test()).to.equal(true);
+
+      // data after upgrade
+      expect(await newDiscreteDutchAuctionMechanic.owner()).to.equal(ownerOnOldMechanic);
     });
   });
 });

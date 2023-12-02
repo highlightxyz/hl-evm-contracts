@@ -9,6 +9,8 @@ import "./interfaces/INativeMetaTransaction.sol";
 import "../utils/EIP712Upgradeable.sol";
 import "../metatx/ERC2771ContextUpgradeable.sol";
 import "./interfaces/IAbridgedMintVector.sol";
+import "./mechanics/interfaces/IMechanicMintManager.sol";
+import "./mechanics/interfaces/IMechanic.sol";
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
@@ -27,7 +29,8 @@ contract MintManager is
     UUPSUpgradeable,
     OwnableUpgradeable,
     ERC2771ContextUpgradeable,
-    IAbridgedMintVector
+    IAbridgedMintVector,
+    IMechanicMintManager
 {
     using ECDSA for bytes32;
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -116,6 +119,21 @@ contract MintManager is
     error MintPaused();
 
     /**
+     * @notice Throw when an entity is already registered with a given ID
+     */
+    error AlreadyRegisteredWithId();
+
+    /**
+     * @notice Throw when a mechanic is invalid
+     */
+    error InvalidMechanic();
+
+    /**
+     * @notice Throw when a mechanic is paused
+     */
+    error MechanicPaused();
+
+    /**
      * @notice On-chain mint vector
      * @param contractAddress NFT smart contract address
      * @param currency Currency used for payment. Native gas token, if zero address
@@ -196,40 +214,6 @@ contract MintManager is
         uint256 maxClaimableViaVector;
         uint256 maxClaimablePerUser;
         uint256 editionId;
-        uint256 claimExpiryTimestamp;
-        bytes32 claimNonce;
-        bytes32 offchainVectorId;
-    }
-
-    /**
-     * @notice Claim that is signed off-chain with EIP-712, and unwrapped to facilitate fulfillment of mint.
-     *      Includes meta-tx packets to impersonate purchaser and make payments.
-     * @param currency Currency used for payment. Native gas token, if zero address
-     * @param contractAddress NFT smart contract address
-     * @param claimer Account able to use this claim
-     * @param paymentRecipient Payment recipient
-     * @param pricePerToken Price that has to be paid per minted token
-     * @param numTokensToMint Number of NFTs to mint in this transaction
-     * @param purchaseToCreatorPacket Meta-tx packet that send portion of payment to creator
-     * @param purchaseToPlatformPacket Meta-tx packet that send portion of payment to platform
-     * @param maxClaimableViaVector Max number of tokens that can be minted via vector
-     * @param maxClaimablePerUser Max number of tokens that can be minted by user via vector
-     * @param editionId ID of edition to mint on. Unused if claim is passed into ERC721General minting function
-     * @param claimExpiryTimestamp Time when claim expires
-     * @param claimNonce Unique identifier of claim
-     * @param offchainVectorId Unique identifier of vector offchain
-     */
-    struct ClaimWithMetaTxPacket {
-        address currency;
-        address contractAddress;
-        address claimer;
-        uint256 pricePerToken;
-        uint64 numTokensToMint;
-        PurchaserMetaTxPacket purchaseToCreatorPacket;
-        PurchaserMetaTxPacket purchaseToPlatformPacket;
-        uint256 maxClaimableViaVector;
-        uint256 maxClaimablePerUser;
-        uint256 editionId; // unused if for general contract mints
         uint256 claimExpiryTimestamp;
         bytes32 claimNonce;
         bytes32 offchainVectorId;
@@ -369,6 +353,11 @@ contract MintManager is
     uint256 private constant _BITMASK_AV_PAUSED = 1;
 
     /**
+     * @notice Global mechanic vector metadatas
+     */
+    mapping(bytes32 => MechanicVectorMetadata) public mechanicVectorMetadata;
+
+    /**
      * @notice Emitted when platform executor is added or removed
      * @param executor Changed executor
      * @param added True if executor was added and false otherwise
@@ -443,24 +432,6 @@ contract MintManager is
     );
 
     /**
-     * @notice Emitted when payment is made in ERC20 via meta-tx packet method
-     * @param currency ERC20 currency
-     * @param msgSender Payer
-     * @param vectorId Vector that payment was for
-     * @param purchaseToCreatorPacket Meta-tx packet facilitating payment to creator
-     * @param purchaseToPlatformPacket Meta-tx packet facilitating payment to platform
-     * @param amount Payment amount
-     */
-    event ERC20PaymentMetaTxPackets(
-        address indexed currency,
-        address indexed msgSender,
-        bytes32 indexed vectorId,
-        PurchaserMetaTxPacket purchaseToCreatorPacket,
-        PurchaserMetaTxPacket purchaseToPlatformPacket,
-        uint256 amount
-    );
-
-    /**
      * @notice Emitted on a mint where discrete token ids are minted
      * @param vectorId Vector that payment was for
      * @param contractAddress Address of contract being minted on
@@ -487,6 +458,50 @@ contract MintManager is
         bool indexed onChainVector,
         uint256 numMinted
     );
+
+    /**
+     * @notice Emitted on a mint where a number of tokens are minted monotonically by the owner
+     * @param contractAddress Address of contract being minted on
+     * @param isEditionBased Denotes whether collection is edition-based
+     * @param editionId Edition ID, if applicable
+     * @param numMinted Number of tokens minted
+     */
+    event CreatorReservesNumMint(
+        address indexed contractAddress,
+        bool indexed isEditionBased,
+        uint256 indexed editionId,
+        uint256 numMinted
+    );
+
+    /**
+     * @notice Emitted on a mint where a number of tokens are minted monotonically by the owner
+     * @param contractAddress Address of contract being minted on
+     * @param tokenIds IDs of tokens minted
+     */
+    event CreatorReservesChooseMint(address indexed contractAddress, uint256[] tokenIds);
+
+    /**
+     * @notice Emitted when a mechanic vector is registered
+     * @param mechanicVectorId Global mechanic vector ID
+     * @param mechanic Mechanic's address
+     * @param contractAddress Address of collection the mechanic is minting on
+     * @param editionId ID of edition, if applicable
+     * @param isEditionBased If true, edition based
+     */
+    event MechanicVectorRegistered(
+        bytes32 indexed mechanicVectorId,
+        address indexed mechanic,
+        address indexed contractAddress,
+        uint256 editionId,
+        bool isEditionBased
+    );
+
+    /**
+     * @notice Emitted when a mechanic vector's pause state is toggled
+     * @param mechanicVectorId Global mechanic vector ID
+     * @param paused If true, mechanic was paused. If false, mechanic was unpaused
+     */
+    event MechanicVectorPauseSet(bytes32 indexed mechanicVectorId, bool indexed paused);
 
     /**
      * @notice Restricts calls to platform
@@ -523,25 +538,20 @@ contract MintManager is
     }
 
     /**
-     * @notice Add platform executor. Expected to be protected by a smart contract wallet.
-     * @param _executor Platform executor to add
+     * @notice Add or deprecate platform executor
+     * @param _executor Platform executor to add or deprecate
      */
-    function addPlatformExecutor(address _executor) external onlyOwner {
-        if (_executor == address(0) || !_platformExecutors.add(_executor)) {
+    function addOrDeprecatePlatformExecutor(address _executor) external onlyOwner {
+        if (_executor == address(0)) {
             _revert(InvalidExecutorChanged.selector);
         }
-        emit PlatformExecutorChanged(_executor, true);
-    }
-
-    /**
-     * @notice Deprecate platform executor. Expected to be protected by a smart contract wallet.
-     * @param _executor Platform executor to deprecate
-     */
-    function deprecatePlatformExecutor(address _executor) external onlyOwner {
-        if (!_platformExecutors.remove(_executor)) {
-            _revert(InvalidExecutorChanged.selector);
+        if (_platformExecutors.contains(_executor)) {
+            // remove exeuctor
+            _platformExecutors.remove(_executor);
+        } else {
+            // add executor
+            _platformExecutors.add(_executor);
         }
-        emit PlatformExecutorChanged(_executor, false);
     }
 
     /**
@@ -662,6 +672,241 @@ contract MintManager is
     }
 
     /**
+     * @notice See {IMechanicMintManager-registerMechanicVector}
+     */
+    function registerMechanicVector(
+        MechanicVectorMetadata memory _mechanicVectorMetadata,
+        uint96 seed,
+        bytes calldata vectorData
+    ) external {
+        address msgSender = _msgSender();
+        bytes32 mechanicVectorId = _produceMechanicVectorId(_mechanicVectorMetadata, seed);
+        if (
+            msgSender == _mechanicVectorMetadata.contractAddress ||
+            Ownable(_mechanicVectorMetadata.contractAddress).owner() == msgSender
+        ) {
+            if (mechanicVectorMetadata[mechanicVectorId].contractAddress != address(0)) {
+                _revert(AlreadyRegisteredWithId.selector);
+            }
+            if (
+                _mechanicVectorMetadata.contractAddress == address(0) ||
+                _mechanicVectorMetadata.mechanic == address(0) ||
+                (_mechanicVectorMetadata.isEditionBased && _mechanicVectorMetadata.isChoose) ||
+                mechanicVectorId == bytes32(0)
+            ) {
+                _revert(InvalidMechanic.selector);
+            }
+            _mechanicVectorMetadata.paused = false;
+            mechanicVectorMetadata[mechanicVectorId] = _mechanicVectorMetadata;
+        } else {
+            _revert(Unauthorized.selector);
+        }
+
+        IMechanic(_mechanicVectorMetadata.mechanic).createVector(mechanicVectorId, vectorData);
+
+        emit MechanicVectorRegistered(
+            mechanicVectorId,
+            _mechanicVectorMetadata.mechanic,
+            _mechanicVectorMetadata.contractAddress,
+            _mechanicVectorMetadata.editionId,
+            _mechanicVectorMetadata.isEditionBased
+        );
+    }
+
+    /**
+     * @notice See {IMechanicMintManager-setPauseOnMechanicMintVector}
+     */
+    function setPauseOnMechanicMintVector(bytes32 mechanicVectorId, bool pause) external {
+        address msgSender = _msgSender();
+        address contractAddress = mechanicVectorMetadata[mechanicVectorId].contractAddress;
+        if (contractAddress == address(0)) {
+            _revert(InvalidMechanic.selector);
+        }
+
+        if (Ownable(contractAddress).owner() == msgSender || msgSender == contractAddress) {
+            mechanicVectorMetadata[mechanicVectorId].paused = pause;
+        } else {
+            _revert(Unauthorized.selector);
+        }
+
+        emit MechanicVectorPauseSet(mechanicVectorId, pause);
+    }
+
+    /**
+     * @notice See {IMechanicMintManager-mechanicMintNum}
+     */
+    function mechanicMintNum(
+        bytes32 mechanicVectorId,
+        address recipient,
+        uint32 numToMint,
+        bytes calldata data
+    ) external payable {
+        MechanicVectorMetadata memory _mechanicVectorMetadata = mechanicVectorMetadata[mechanicVectorId];
+
+        if (_mechanicVectorMetadata.paused) {
+            _revert(MechanicPaused.selector);
+        }
+        if (_mechanicVectorMetadata.isChoose) {
+            _revert(InvalidMechanic.selector);
+        }
+        uint256 _platformFee = (numToMint * _platformMintFee);
+        if (msg.value < _platformFee) {
+            _revert(MintFeeTooLow.selector);
+        }
+
+        uint256 amountWithoutMintFee = msg.value - _platformFee;
+        IMechanic(_mechanicVectorMetadata.mechanic).processNumMint{ value: amountWithoutMintFee }(
+            mechanicVectorId,
+            recipient,
+            numToMint,
+            _mechanicVectorMetadata,
+            data
+        );
+
+        if (_mechanicVectorMetadata.isEditionBased) {
+            if (numToMint == 1) {
+                IERC721EditionMint(_mechanicVectorMetadata.contractAddress).mintOneToRecipient(
+                    _mechanicVectorMetadata.editionId,
+                    recipient
+                );
+            } else {
+                IERC721EditionMint(_mechanicVectorMetadata.contractAddress).mintAmountToRecipient(
+                    _mechanicVectorMetadata.editionId,
+                    recipient,
+                    uint256(numToMint)
+                );
+            }
+        } else {
+            if (numToMint == 1) {
+                IERC721GeneralMint(_mechanicVectorMetadata.contractAddress).mintOneToOneRecipient(recipient);
+            } else {
+                IERC721GeneralMint(_mechanicVectorMetadata.contractAddress).mintAmountToOneRecipient(
+                    recipient,
+                    uint256(numToMint)
+                );
+            }
+        }
+
+        emit NumTokenMint(mechanicVectorId, _mechanicVectorMetadata.contractAddress, true, uint256(numToMint));
+    }
+
+    /**
+     * @notice See {IMechanicMintManager-mechanicMintChoose}
+     */
+    function mechanicMintChoose(
+        bytes32 mechanicVectorId,
+        address recipient,
+        uint256[] calldata tokenIds,
+        bytes calldata data
+    ) external payable {
+        MechanicVectorMetadata memory _mechanicVectorMetadata = mechanicVectorMetadata[mechanicVectorId];
+
+        if (_mechanicVectorMetadata.paused) {
+            _revert(MechanicPaused.selector);
+        }
+        if (!_mechanicVectorMetadata.isChoose) {
+            _revert(InvalidMechanic.selector);
+        }
+        uint32 numToMint = uint32(tokenIds.length);
+        uint256 _platformFee = (numToMint * _platformMintFee);
+        if (msg.value < _platformFee) {
+            _revert(MintFeeTooLow.selector);
+        }
+
+        // send value without amount needed for mint fee
+        IMechanic(_mechanicVectorMetadata.mechanic).processChooseMint{ value: msg.value - _platformFee }(
+            mechanicVectorId,
+            recipient,
+            tokenIds,
+            _mechanicVectorMetadata,
+            data
+        );
+
+        if (numToMint == 1) {
+            IERC721GeneralMint(_mechanicVectorMetadata.contractAddress).mintSpecificTokenToOneRecipient(
+                recipient,
+                tokenIds[0]
+            );
+        } else {
+            IERC721GeneralMint(_mechanicVectorMetadata.contractAddress).mintSpecificTokensToOneRecipient(
+                recipient,
+                tokenIds
+            );
+        }
+
+        emit ChooseTokenMint(mechanicVectorId, _mechanicVectorMetadata.contractAddress, true, tokenIds);
+    }
+
+    /* solhint-disable code-complexity */
+
+    /**
+     * @notice Let the owner of a collection mint creator reserves
+     * @param collection Collection contract address
+     * @param isEditionBased If true, collection is edition-based
+     * @param editionId Edition ID of collection, if applicable
+     * @param numToMint Number of tokens to mint on sequential mints
+     * @param tokenIds To reserve mint collector's choice based mints
+     * @param isCollectorsChoice If true, mint via collector's choice based paradigm
+     * @param recipient Recipient of minted tokens
+     */
+    function creatorReservesMint(
+        address collection,
+        bool isEditionBased,
+        uint256 editionId,
+        uint256 numToMint,
+        uint256[] calldata tokenIds,
+        bool isCollectorsChoice,
+        address recipient
+    ) external payable {
+        address msgSender = _msgSender();
+
+        uint256 tokenIdsLength = tokenIds.length;
+        if (tokenIdsLength > 0) {
+            numToMint = tokenIdsLength;
+        }
+
+        if (Ownable(collection).owner() == msgSender || msgSender == collection) {
+            // validate platform mint fee
+            uint256 mintFeeAmount = _platformMintFee * numToMint;
+            if (mintFeeAmount > msg.value) {
+                _revert(InvalidPaymentAmount.selector);
+            }
+
+            if (isEditionBased) {
+                if (numToMint == 1) {
+                    IERC721EditionMint(collection).mintOneToRecipient(editionId, recipient);
+                } else {
+                    IERC721EditionMint(collection).mintAmountToRecipient(editionId, recipient, numToMint);
+                }
+            } else {
+                if (numToMint == 1) {
+                    if (isCollectorsChoice) {
+                        IERC721GeneralMint(collection).mintSpecificTokenToOneRecipient(recipient, tokenIds[0]);
+                    } else {
+                        IERC721GeneralMint(collection).mintOneToOneRecipient(recipient);
+                    }
+                } else {
+                    if (isCollectorsChoice) {
+                        IERC721GeneralMint(collection).mintSpecificTokensToOneRecipient(recipient, tokenIds);
+                    } else {
+                        IERC721GeneralMint(collection).mintAmountToOneRecipient(recipient, numToMint);
+                    }
+                }
+            }
+
+            if (isCollectorsChoice) {
+                emit CreatorReservesChooseMint(collection, tokenIds);
+            } else {
+                emit CreatorReservesNumMint(collection, isEditionBased, editionId, numToMint);
+            }
+        } else {
+            _revert(Unauthorized.selector);
+        }
+    }
+
+    /* solhint-enable code-complexity */
+
+    /**
      * @notice Mint on a Series with a valid claim where one can choose the tokens to mint
      * @param claim Series Claim
      * @param claimSignature Signed + encoded claim
@@ -719,12 +964,12 @@ contract MintManager is
     }
 
     /**
-     * @notice Mint on vector pointing to ERC721Editions or ERC721SingleEdiion collection
+     * @notice Mint via an abridged vector
      * @param vectorId ID of vector
      * @param numTokensToMint Number of tokens to mint
      * @param mintRecipient Who to mint the NFT(s) to
      */
-    function vectorMintEdition721(uint256 vectorId, uint48 numTokensToMint, address mintRecipient) external payable {
+    function vectorMint721(uint256 vectorId, uint48 numTokensToMint, address mintRecipient) external payable {
         address msgSender = _msgSender();
         address user = mintRecipient;
         if (_useSenderForUserLimit(vectorId)) {
@@ -738,9 +983,6 @@ contract MintManager is
         if (_vector.allowlistRoot != 0) {
             _revert(AllowlistInvalid.selector);
         }
-        if (!_vector.editionBasedCollection) {
-            _revert(VectorWrongCollectionType.selector);
-        }
         if (_vector.requireDirectEOA && msgSender != tx.origin) {
             _revert(SenderNotDirectEOA.selector);
         }
@@ -748,150 +990,25 @@ contract MintManager is
         _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
         userClaims[vectorId][user] = uint64(newNumClaimedForUser);
 
-        _vectorMintEdition721(
-            vectorId,
-            _vector,
-            numTokensToMint,
-            mintRecipient,
-            newNumClaimedViaVector,
-            newNumClaimedForUser
-        );
-    }
-
-    /**
-     * @notice Mint on vector pointing to ERC721Editions or ERC721SingleEdiion collection, with allowlist
-     * @param vectorId ID of vector
-     * @param numTokensToMint Number of tokens to mint
-     * @param mintRecipient Who to mint the NFT(s) to
-     * @param proof Proof of minter's inclusion in allowlist
-     */
-    function vectorMintEdition721WithAllowlist(
-        uint256 vectorId,
-        uint48 numTokensToMint,
-        address mintRecipient,
-        bytes32[] calldata proof
-    ) external payable {
-        address msgSender = _msgSender();
-        address user = mintRecipient;
-        if (_useSenderForUserLimit(vectorId)) {
-            user = msgSender;
-        }
-
-        AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
-        uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
-        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][user]) + numTokensToMint;
-
-        // merkle tree allowlist validation
-        bytes32 leaf = keccak256(abi.encodePacked(user));
-        if (!MerkleProof.verify(proof, _vector.allowlistRoot, leaf)) {
-            _revert(AllowlistInvalid.selector);
-        }
-        if (!_vector.editionBasedCollection) {
-            _revert(VectorWrongCollectionType.selector);
-        }
-        if (_vector.requireDirectEOA && msgSender != tx.origin) {
-            _revert(SenderNotDirectEOA.selector);
-        }
-
-        _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
-        userClaims[vectorId][user] = uint64(newNumClaimedForUser);
-
-        _vectorMintEdition721(
-            vectorId,
-            _vector,
-            numTokensToMint,
-            mintRecipient,
-            newNumClaimedViaVector,
-            newNumClaimedForUser
-        );
-    }
-
-    /**
-     * @notice Mint on vector pointing to ERC721General or ERC721Generative collection
-     * @param vectorId ID of vector
-     * @param numTokensToMint Number of tokens to mint
-     * @param mintRecipient Who to mint the NFT(s) to
-     */
-    function vectorMintSeries721(uint256 vectorId, uint48 numTokensToMint, address mintRecipient) external payable {
-        address msgSender = _msgSender();
-        address user = mintRecipient;
-        if (_useSenderForUserLimit(vectorId)) {
-            user = msgSender;
-        }
-
-        AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
-        uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
-        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][user]) + numTokensToMint;
-
-        if (_vector.allowlistRoot != 0) {
-            _revert(AllowlistInvalid.selector);
-        }
         if (_vector.editionBasedCollection) {
-            _revert(VectorWrongCollectionType.selector);
+            _vectorMintEdition721(
+                vectorId,
+                _vector,
+                numTokensToMint,
+                mintRecipient,
+                newNumClaimedViaVector,
+                newNumClaimedForUser
+            );
+        } else {
+            _vectorMintGeneral721(
+                vectorId,
+                _vector,
+                numTokensToMint,
+                mintRecipient,
+                newNumClaimedViaVector,
+                newNumClaimedForUser
+            );
         }
-        if (_vector.requireDirectEOA && msgSender != tx.origin) {
-            _revert(SenderNotDirectEOA.selector);
-        }
-
-        _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
-        userClaims[vectorId][user] = uint64(newNumClaimedForUser);
-
-        _vectorMintGeneral721(
-            vectorId,
-            _vector,
-            numTokensToMint,
-            mintRecipient,
-            newNumClaimedViaVector,
-            newNumClaimedForUser
-        );
-    }
-
-    /**
-     * @notice Mint on vector pointing to ERC721General or ERC721Generative collection
-     * @param vectorId ID of vector
-     * @param numTokensToMint Number of tokens to mint
-     * @param mintRecipient Who to mint the NFT(s) to
-     * @param proof Proof of minter's inclusion in allowlist
-     */
-    function vectorMintSeries721WithAllowlist(
-        uint256 vectorId,
-        uint48 numTokensToMint,
-        address mintRecipient,
-        bytes32[] calldata proof
-    ) external payable {
-        address msgSender = _msgSender();
-        address user = mintRecipient;
-        if (_useSenderForUserLimit(vectorId)) {
-            user = msgSender;
-        }
-
-        AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
-        uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
-        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][user]) + numTokensToMint;
-
-        // merkle tree allowlist validation
-        bytes32 leaf = keccak256(abi.encodePacked(user));
-        if (!MerkleProof.verify(proof, _vector.allowlistRoot, leaf)) {
-            _revert(AllowlistInvalid.selector);
-        }
-        if (_vector.editionBasedCollection) {
-            _revert(VectorWrongCollectionType.selector);
-        }
-        if (_vector.requireDirectEOA && msgSender != tx.origin) {
-            _revert(SenderNotDirectEOA.selector);
-        }
-
-        _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
-        userClaims[vectorId][user] = uint64(newNumClaimedForUser);
-
-        _vectorMintGeneral721(
-            vectorId,
-            _vector,
-            numTokensToMint,
-            mintRecipient,
-            newNumClaimedViaVector,
-            newNumClaimedForUser
-        );
     }
 
     /**
@@ -927,27 +1044,29 @@ contract MintManager is
     /**
      * @notice Withdraw native gas token owed to platform
      */
-    function withdrawNativeGasToken() external onlyPlatform {
-        uint256 withdrawnValue = address(this).balance;
-        (bool sentToPlatform, bytes memory dataPlatform) = _platform.call{ value: withdrawnValue }("");
+    function withdrawNativeGasToken(uint256 amountToWithdraw) external onlyPlatform {
+        (bool sentToPlatform, bytes memory dataPlatform) = _platform.call{ value: amountToWithdraw }("");
         if (!sentToPlatform) {
             _revert(EtherSendFailed.selector);
         }
     }
 
     /**
-     * @notice Update platform mint fee
-     * @param newPlatformMintFee New platform mint fee
+     * @notice Update platform payment address
      */
-    function updatePlatformMintFee(uint256 newPlatformMintFee) external onlyOwner {
+    function updatePlatformAndMintFee(address payable newPlatform, uint256 newPlatformMintFee) external onlyOwner {
+        if (newPlatform == address(0)) {
+            _revert(Unauthorized.selector);
+        }
+        _platform = newPlatform;
         _platformMintFee = newPlatformMintFee;
     }
 
     /**
      * @notice Returns platform executors
      */
-    function platformExecutors() external view returns (address[] memory) {
-        return _platformExecutors.values();
+    function isPlatformExecutor(address _executor) external view returns (bool) {
+        return _platformExecutors.contains(_executor);
     }
 
     /**
@@ -981,7 +1100,7 @@ contract MintManager is
         address signer = _claimSigner(claim, signature);
 
         return
-            _isPlatformExecutor(signer) &&
+            _platformExecutors.contains(signer) &&
             !_offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) &&
             block.timestamp <= claim.claimExpiryTimestamp &&
             (claim.maxClaimableViaVector == 0 ||
@@ -990,77 +1109,6 @@ contract MintManager is
             (claim.maxClaimablePerUser == 0 ||
                 claim.numTokensToMint +
                     offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[claim.claimer] <=
-                claim.maxClaimablePerUser);
-    }
-
-    /**
-     * @notice Verify that series claim and series claim signature are valid for a mint
-     * @param claim Series Claim
-     * @param signature Signed + encoded claim
-     * @param expectedMsgSender *DEPRECATED*, keep for interface adherence
-     * @param tokenIds IDs of NFTs to be minted
-     */
-    function verifySeriesClaim(
-        SeriesClaim calldata claim,
-        bytes calldata signature,
-        address expectedMsgSender,
-        uint256[] calldata tokenIds
-    ) external view returns (bool) {
-        address signer = _seriesClaimSigner(claim, signature);
-        uint256 numTokensToMint = tokenIds.length;
-
-        /* solhint-disable no-empty-blocks */
-        for (uint256 i = 0; i < numTokensToMint; i++) {
-            // if any token has already been minted, return false
-            try IERC721(claim.contractAddress).ownerOf(tokenIds[i]) returns (address tokenOwner) {
-                if (tokenOwner != address(0)) {
-                    return false;
-                }
-            } catch {
-                // valid, ownerOf reverted
-            }
-        }
-        /* solhint-enable no-empty-blocks */
-
-        return
-            _isPlatformExecutor(signer) &&
-            numTokensToMint <= claim.maxPerTxn &&
-            !_offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) &&
-            block.timestamp <= claim.claimExpiryTimestamp &&
-            (claim.maxClaimableViaVector == 0 ||
-                numTokensToMint + offchainVectorsClaimState[claim.offchainVectorId].numClaimed <=
-                claim.maxClaimableViaVector) &&
-            (claim.maxClaimablePerUser == 0 ||
-                numTokensToMint + offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[claim.claimer] <=
-                claim.maxClaimablePerUser);
-    }
-
-    /**
-     * @notice Verify that claim and claim signature are valid for a mint (claim version with meta-tx packets)
-     * @param claim Claim
-     * @param signature Signed + encoded claim
-     * @param expectedMsgSender Expected claimer to verify claim for
-     */
-    function verifyClaimWithMetaTxPacket(
-        ClaimWithMetaTxPacket calldata claim,
-        bytes calldata signature,
-        address expectedMsgSender
-    ) external view returns (bool) {
-        address signer = _claimWithMetaTxPacketSigner(claim, signature);
-        if (expectedMsgSender != claim.claimer) {
-            _revert(SenderNotClaimer.selector);
-        }
-
-        return
-            _isPlatformExecutor(signer) &&
-            !_offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) &&
-            block.timestamp <= claim.claimExpiryTimestamp &&
-            (claim.maxClaimableViaVector == 0 ||
-                claim.numTokensToMint + offchainVectorsClaimState[claim.offchainVectorId].numClaimed <=
-                claim.maxClaimableViaVector) &&
-            (claim.maxClaimablePerUser == 0 ||
-                claim.numTokensToMint +
-                    offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[expectedMsgSender] <=
                 claim.maxClaimablePerUser);
     }
 
@@ -1226,7 +1274,7 @@ contract MintManager is
         ] + claim.numTokensToMint;
 
         if (
-            !_isPlatformExecutor(signer) ||
+            !_platformExecutors.contains(signer) ||
             _offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) ||
             block.timestamp > claim.claimExpiryTimestamp ||
             (expectedNumClaimedViaVector > claim.maxClaimableViaVector && claim.maxClaimableViaVector != 0) ||
@@ -1262,42 +1310,8 @@ contract MintManager is
         ] + numTokensToMint;
 
         if (
-            !_isPlatformExecutor(signer) ||
+            !_platformExecutors.contains(signer) ||
             numTokensToMint > claim.maxPerTxn ||
-            _offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) ||
-            block.timestamp > claim.claimExpiryTimestamp ||
-            (expectedNumClaimedViaVector > claim.maxClaimableViaVector && claim.maxClaimableViaVector != 0) ||
-            (expectedNumClaimedByUser > claim.maxClaimablePerUser && claim.maxClaimablePerUser != 0)
-        ) {
-            _revert(InvalidClaim.selector);
-        }
-
-        _offchainVectorsToNoncesUsed[claim.offchainVectorId].add(claim.claimNonce); // mark claim nonce as used
-        // update claim state
-        offchainVectorsClaimState[claim.offchainVectorId].numClaimed = expectedNumClaimedViaVector;
-        offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[claim.claimer] = expectedNumClaimedByUser;
-    }
-
-    /**
-     * @notice Verify, and update the state of a gated mint claim (version w/ meta-tx packets)
-     * @param claim Claim
-     * @param signature Signed + encoded claim
-     */
-    function _verifyAndUpdateClaimWithMetaTxPacket(
-        ClaimWithMetaTxPacket calldata claim,
-        bytes calldata signature
-    ) private {
-        address signer = _claimWithMetaTxPacketSigner(claim, signature);
-
-        // cannot cache here due to nested mapping
-        uint256 expectedNumClaimedViaVector = offchainVectorsClaimState[claim.offchainVectorId].numClaimed +
-            claim.numTokensToMint;
-        uint256 expectedNumClaimedByUser = offchainVectorsClaimState[claim.offchainVectorId].numClaimedPerUser[
-            claim.claimer
-        ] + claim.numTokensToMint;
-
-        if (
-            !_isPlatformExecutor(signer) ||
             _offchainVectorsToNoncesUsed[claim.offchainVectorId].contains(claim.claimNonce) ||
             block.timestamp > claim.claimExpiryTimestamp ||
             (expectedNumClaimedViaVector > claim.maxClaimableViaVector && claim.maxClaimableViaVector != 0) ||
@@ -1444,7 +1458,7 @@ contract MintManager is
         address payable recipient,
         bytes32 vectorId
     ) private {
-        if (totalAmount + mintFeeAmount > msg.value) {
+        if (totalAmount + mintFeeAmount != msg.value) {
             _revert(InvalidPaymentAmount.selector);
         }
 
@@ -1472,61 +1486,13 @@ contract MintManager is
         address currency,
         bytes32 vectorId
     ) private {
-        if (mintFeeAmount > msg.value) {
+        if (mintFeeAmount != msg.value) {
             _revert(MintFeeTooLow.selector);
         }
         IERC20(currency).transferFrom(payer, recipient, totalAmount);
         // IERC20(currency).transferFrom(payer, _platform, totalAmount - amountToCreator);
 
         emit ERC20Payment(currency, recipient, vectorId, payer, totalAmount, 10000);
-    }
-
-    /**
-     * @notice Process payment in ERC20 with meta-tx packets, sending to creator and platform
-     * @param currency ERC20 currency
-     * @param purchaseToCreatorPacket Meta-tx packet facilitating payment to creator recipient
-     * @param purchaseToPlatformPacket Meta-tx packet facilitating payment to platform
-     * @param msgSender Claimer
-     * @param vectorId ID of vector (on-chain or off-chain)
-     * @param amount Total amount paid
-     */
-    function _processERC20PaymentWithMetaTxPackets(
-        address currency,
-        PurchaserMetaTxPacket calldata purchaseToCreatorPacket,
-        PurchaserMetaTxPacket calldata purchaseToPlatformPacket,
-        address msgSender,
-        bytes32 vectorId,
-        uint256 amount
-    ) private {
-        uint256 previousBalance = IERC20(currency).balanceOf(msgSender);
-        INativeMetaTransaction(currency).executeMetaTransaction(
-            msgSender,
-            purchaseToCreatorPacket.functionSignature,
-            purchaseToCreatorPacket.sigR,
-            purchaseToCreatorPacket.sigS,
-            purchaseToCreatorPacket.sigV
-        );
-
-        INativeMetaTransaction(currency).executeMetaTransaction(
-            msgSender,
-            purchaseToPlatformPacket.functionSignature,
-            purchaseToPlatformPacket.sigR,
-            purchaseToPlatformPacket.sigS,
-            purchaseToPlatformPacket.sigV
-        );
-
-        if (IERC20(currency).balanceOf(msgSender) > (previousBalance - amount)) {
-            _revert(InvalidPaymentAmount.selector);
-        }
-
-        emit ERC20PaymentMetaTxPackets(
-            currency,
-            msgSender,
-            vectorId,
-            purchaseToCreatorPacket,
-            purchaseToPlatformPacket,
-            amount
-        );
     }
 
     /**
@@ -1551,38 +1517,12 @@ contract MintManager is
     }
 
     /**
-     * @notice Recover claimWithMetaTxPacket signature signer
-     * @param claim Claim
-     * @param signature Claim signature
-     */
-    function _claimWithMetaTxPacketSigner(
-        ClaimWithMetaTxPacket calldata claim,
-        bytes calldata signature
-    ) private view returns (address) {
-        return
-            _hashTypedDataV4(
-                keccak256(
-                    bytes.concat(
-                        _claimWithMetaTxABIEncoded1(claim),
-                        _claimWithMetaTxABIEncoded2(claim.claimNonce, claim.offchainVectorId)
-                    )
-                )
-            ).recover(signature);
-    }
-
-    /**
-     * @notice Returns true if account passed in is a platform executor
-     * @param _executor Account being checked
-     */
-    function _isPlatformExecutor(address _executor) private view returns (bool) {
-        return _platformExecutors.contains(_executor);
-    }
-
-    /**
      * @dev Understand whether to use the transaction sender or the nft recipient for per-user limits on onchain vectors
      */
     function _useSenderForUserLimit(uint256 mintVectorId) private view returns (bool) {
-        return ((block.chainid == 1 && mintVectorId < 19) ||
+        return false;
+        /*
+            ((block.chainid == 1 && mintVectorId < 19) ||
             (block.chainid == 5 && mintVectorId < 188) ||
             (block.chainid == 42161 && mintVectorId < 6) ||
             (block.chainid == 421613 && mintVectorId < 3) ||
@@ -1594,6 +1534,27 @@ contract MintManager is
             (block.chainid == 420 && mintVectorId < 3) ||
             (block.chainid == 137 && mintVectorId < 7) ||
             (block.chainid == 80001 && mintVectorId < 16));
+        */
+    }
+
+    /**
+     * @notice Deterministically produce mechanic vector ID from mechanic vector inputs
+     * @param metadata Mechanic vector metadata
+     * @param seed Used to seed uniqueness
+     */
+    function _produceMechanicVectorId(
+        MechanicVectorMetadata memory metadata,
+        uint96 seed
+    ) private pure returns (bytes32 mechanicVectorId) {
+        mechanicVectorId = keccak256(
+            abi.encodePacked(
+                metadata.contractAddress,
+                metadata.editionId,
+                metadata.mechanic,
+                metadata.isEditionBased,
+                seed
+            )
+        );
     }
 
     /* solhint-disable max-line-length */
@@ -1614,16 +1575,6 @@ contract MintManager is
         return
             keccak256(
                 "SeriesClaim(address currency,address contractAddress,address claimer,address paymentRecipient,uint256 pricePerToken,uint64 maxPerTxn,uint64 maxClaimableViaVector,uint64 maxClaimablePerUser,uint64 claimExpiryTimestamp,bytes32 claimNonce,bytes32 offchainVectorId)"
-            );
-    }
-
-    /**
-     * @notice Get claimWithMetaTxPacket typehash
-     */
-    function _getClaimWithMetaTxPacketTypeHash() private pure returns (bytes32) {
-        return
-            keccak256(
-                "ClaimWithMetaTxPacket(address currency,address contractAddress,address claimer,uint256 pricePerToken,uint64 numTokensToMint,PurchaserMetaTxPacket purchaseToCreatorPacket,PurchaserMetaTxPacket purchaseToPlatformPacket,uint256 maxClaimableViaVector,uint256 maxClaimablePerUser,uint256 editionId,uint256 claimExpiryTimestamp,bytes32 claimNonce,bytes32 offchainVectorId)"
             );
     }
 
@@ -1679,40 +1630,6 @@ contract MintManager is
      */
     function _claimABIEncoded2(bytes32 offchainVectorId) private pure returns (bytes memory) {
         return abi.encode(offchainVectorId);
-    }
-
-    /**
-     * @notice Return abi-encoded claimWithMetaTxPacket part one
-     * @param claim Claim
-     */
-    function _claimWithMetaTxABIEncoded1(ClaimWithMetaTxPacket calldata claim) private pure returns (bytes memory) {
-        return
-            abi.encode(
-                _getClaimWithMetaTxPacketTypeHash(),
-                claim.currency,
-                claim.contractAddress,
-                claim.claimer,
-                claim.pricePerToken,
-                claim.numTokensToMint,
-                claim.purchaseToCreatorPacket,
-                claim.purchaseToPlatformPacket,
-                claim.maxClaimableViaVector,
-                claim.maxClaimablePerUser,
-                claim.editionId,
-                claim.claimExpiryTimestamp
-            );
-    }
-
-    /**
-     * @notice Return abi-encoded claimWithMetaTxPacket part two
-     * @param claimNonce Claim's unique identifier
-     * @param offchainVectorId Offchain vector ID of claim
-     */
-    function _claimWithMetaTxABIEncoded2(
-        bytes32 claimNonce,
-        bytes32 offchainVectorId
-    ) private pure returns (bytes memory) {
-        return abi.encode(claimNonce, offchainVectorId);
     }
 
     /**

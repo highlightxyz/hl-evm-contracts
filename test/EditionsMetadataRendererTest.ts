@@ -89,6 +89,8 @@ describe("Editions Metadata Renderer", () => {
       emr.address,
       generalOwner,
       null,
+      null,
+      false,
       false,
       0,
       ethers.constants.AddressZero,

@@ -534,14 +534,14 @@ describe("ERC721SingleEdition functionality", () => {
     ]);
 
     await expect(
-      mintManager.vectorMintEdition721(1, 2, editionsOwner.address, {
+      mintManager.vectorMint721(1, 2, editionsOwner.address, {
         value: ethers.utils.parseEther("0.0008").mul(2),
       }),
     )
       .to.emit(mintManager, "NumTokenMint")
       .withArgs(ethers.utils.hexZeroPad(ethers.utils.hexlify(1), 32), editions.address, true, 2);
 
-    await expect(mintManager.vectorMintEdition721(1, 1, editionsOwner.address)).to.be.revertedWithCustomError(
+    await expect(mintManager.vectorMint721(1, 1, editionsOwner.address)).to.be.revertedWithCustomError(
       mintManager,
       "OnchainVectorMintGuardFailed",
     );

@@ -46,6 +46,11 @@ contract MultipleEditionsDFS is Proxy {
      * @ param maxTotalClaimableViaVector
      * @ param maxUserClaimableViaVector
      * @ param allowlistRoot
+     * @param mechanicVectorData Mechanic mint vector data
+     * @ param mechanicVectorId Global mechanic vector ID
+     * @ param mechanic Mechanic address
+     * @ param mintManager Mint manager address
+     * @ param vectorData Vector data
      */
     constructor(
         address implementation_,
@@ -55,7 +60,8 @@ contract MultipleEditionsDFS is Proxy {
         address _editionTokenManager,
         IRoyaltyManager.Royalty memory editionRoyalty,
         bytes memory auctionData,
-        bytes memory mintVectorData
+        bytes memory mintVectorData,
+        bytes memory mechanicVectorData
     ) {
         assert(_IMPLEMENTATION_SLOT == bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1));
         StorageSlot.getAddressSlot(_IMPLEMENTATION_SLOT).value = implementation_;
@@ -63,17 +69,31 @@ contract MultipleEditionsDFS is Proxy {
 
         // create edition
         if (bytes(_editionUri).length > 0) {
-            Address.functionDelegateCall(
-                implementation_,
-                abi.encodeWithSignature(
-                    "createEdition(string,uint256,address,(address,uint16),bytes)",
-                    _editionUri,
-                    editionSize,
-                    _editionTokenManager,
-                    editionRoyalty,
-                    mintVectorData
-                )
-            );
+            if (mechanicVectorData.length > 0) {
+                Address.functionDelegateCall(
+                    implementation_,
+                    abi.encodeWithSignature(
+                        "createEditionWithMechanicVector(string,uint256,address,(address,uint16),bytes)",
+                        _editionUri,
+                        editionSize,
+                        _editionTokenManager,
+                        editionRoyalty,
+                        mechanicVectorData
+                    )
+                );
+            } else {
+                Address.functionDelegateCall(
+                    implementation_,
+                    abi.encodeWithSignature(
+                        "createEdition(string,uint256,address,(address,uint16),bytes)",
+                        _editionUri,
+                        editionSize,
+                        _editionTokenManager,
+                        editionRoyalty,
+                        mintVectorData
+                    )
+                );
+            }
         }
 
         if (auctionData.length > 0) {
@@ -110,7 +130,7 @@ contract MultipleEditionsDFS is Proxy {
      * @notice Return the contract type
      */
     function standard() external pure returns (string memory) {
-        return "MultipleEditionsDFS";
+        return "MultipleEditionsDFS2";
     }
 
     /**
