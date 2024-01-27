@@ -73,6 +73,13 @@ contract TransferAndBurnLockedTokenManager is ITokenManager, IPostTransfer, IPos
     }
 
     /**
+     * @notice See {IPostBurn-postBurnAmount}
+     */
+    function postBurnAmount(address /* operator */, address /* sender */, uint256 /* id */, uint256 /* amount */) external pure override {
+        revert("Burns disallowed");
+    }
+
+    /**
      * @notice See {IERC165-supportsInterface}.
      */
     function supportsInterface(
