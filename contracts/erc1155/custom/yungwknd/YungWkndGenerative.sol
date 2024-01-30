@@ -56,10 +56,10 @@ contract YungWkndGenerative is ERC1155GenerativeOnchain {
             _revert(MintFrozen.selector);
         }
 
-        uint256 tempSupply = _nextTokenId();
+        uint256 tempSupply = _tokenCount;
         _requireLimitSupply(tempSupply);
 
-        _mint(recipient, 1);
+        _mint(recipient, tempSupply, 1, "");
 
         _startTokenIds.push(tempSupply);
         _startTokenIdToSeedDetails[tempSupply] = SeedDetails(blockhash(block.number - 1), block.timestamp);
@@ -68,23 +68,44 @@ contract YungWkndGenerative is ERC1155GenerativeOnchain {
     }
 
     /* solhint-enable not-rely-on-block-hash */
-
     /**
-     * @notice See {IERC1155GeneralMint-mintAmountToOneRecipient}
+     * @notice See {IERC1155GeneralMint-mintExistingOneToOneRecipient}
      * @dev Update YungWknd mint details
      */
-    function mintAmountToOneRecipient(address recipient, uint256 amount) external override onlyMinter nonReentrant {
+    function mintExistingOneToOneRecipient(address recipient, uint256 tokenId) external override onlyMinter nonReentrant returns (uint256) {
         if (_mintFrozen == 1) {
             _revert(MintFrozen.selector);
         }
-        uint256 tempSupply = _nextTokenId() - 1; // cache
 
-        _mint(recipient, amount);
+        _requireLimitSupply(tokenId);
 
-        _requireLimitSupply(tempSupply + amount);
+        _mint(recipient, tokenId, 1, "");
 
-        _startTokenIds.push(tempSupply + 1);
-        _startTokenIdToSeedDetails[tempSupply + 1] = SeedDetails(blockhash(block.number - 1), block.timestamp);
+        // _startTokenIds.push(tempSupply);
+        // _startTokenIdToSeedDetails[tempSupply] = SeedDetails(blockhash(block.number - 1), block.timestamp);
+
+        return 1;
+    }
+
+    /* solhint-enable not-rely-on-block-hash */
+    /**
+     * @notice See {IERC1155GeneralMint-mintSeedToOneRecipient}
+     * @dev Update YungWknd mint details
+     */
+    function mintSeedToOneRecipient(address recipient, bytes32 seed) external override onlyMinter nonReentrant returns (uint256) {
+        if (_mintFrozen == 1) {
+            _revert(MintFrozen.selector);
+        }
+
+        uint256 tempSupply = _tokenCount;
+        _requireLimitSupply(tempSupply);
+
+        _mint(recipient, tempSupply, 1, "");
+
+        _startTokenIds.push(tempSupply);
+        _startTokenIdToSeedDetails[tempSupply] = SeedDetails(blockhash(block.number - 1), block.timestamp);
+
+        return tempSupply;
     }
 
     /**
@@ -106,7 +127,7 @@ contract YungWkndGenerative is ERC1155GenerativeOnchain {
     /**
      * @notice Override tokenURI to use YungWkndRenderer
      */
-    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+    function uri(uint256 tokenId) public view override returns (string memory) {
         SeedDetails memory seedDetails = getSeedDetails(tokenId);
 
         return
@@ -120,7 +141,7 @@ contract YungWkndGenerative is ERC1155GenerativeOnchain {
     }
 
     function getSeedDetails(uint256 tokenId) public view returns (SeedDetails memory) {
-        uint256 nextTokenId = _nextTokenId();
+        uint256 nextTokenId = _tokenCount;
         uint256[] memory tempStartTokenIds = _startTokenIds;
         uint256 numBatches = tempStartTokenIds.length;
 

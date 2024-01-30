@@ -6,16 +6,18 @@ import "../metadata/MetadataEncryption.sol";
 import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
 import "./interfaces/IERC1155GeneralSequenceMint.sol";
-import "./erc1155a/ERC1155AURIStorageUpgradeable.sol";
 import "./custom/interfaces/IHighlightRenderer.sol";
+import "../utils/ERC1155/ERC1155URIStorageUpgradeable.sol";
 
 /**
  * @title Generalized Base ERC1155
  * @author highlight.xyz
  * @notice Generalized Base NFT smart contract
  */
-abstract contract ERC1155GeneralSequenceBase is ERC1155Base, ERC1155AURIStorageUpgradeable, IERC1155GeneralSequenceMint {
+abstract contract ERC1155GeneralSequenceBase is ERC1155Base, ERC1155URIStorageUpgradeable, IERC1155GeneralSequenceMint {
     using EnumerableSet for EnumerableSet.AddressSet;
+
+    uint256 _tokenCount;
 
     /**
      * @notice Throw when attempting to mint, while mint is frozen
@@ -88,10 +90,10 @@ abstract contract ERC1155GeneralSequenceBase is ERC1155Base, ERC1155AURIStorageU
             _revert(MintFrozen.selector);
         }
 
-        uint256 tempSupply = _nextTokenId();
+        uint256 tempSupply = _tokenCount;
         _requireLimitSupply(tempSupply);
 
-        _mint(recipient, 1);
+        _mint(recipient, _tokenCount, 1, "");
 
         // process mint on custom renderer if present
         CustomRendererConfig memory _customRendererConfig = customRendererConfig;
@@ -103,84 +105,17 @@ abstract contract ERC1155GeneralSequenceBase is ERC1155Base, ERC1155AURIStorageU
     }
 
     /**
-     * @notice See {IERC1155GeneralMint-mintAmountToOneRecipient}
+     * @notice See {IERC1155GeneralMint-mintExistingOneToOneRecipient}
      */
-    function mintAmountToOneRecipient(address recipient, uint256 amount) external virtual onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
-        uint256 tempSupply = _nextTokenId() - 1; // cache
-
-        _mint(recipient, amount);
-
-        _requireLimitSupply(tempSupply + amount);
-
-        // process mint on custom renderer if present
-        CustomRendererConfig memory _customRendererConfig = customRendererConfig;
-        if (_customRendererConfig.processMintDataOnRenderer) {
-            IHighlightRenderer(_customRendererConfig.renderer).processOneRecipientMint(
-                tempSupply + 1,
-                amount,
-                recipient
-            );
-        }
+    function mintExistingOneToOneRecipient(address recipient, uint256 tokenId) external virtual onlyMinter nonReentrant returns (uint256) {
+        revert("Not supported.");
     }
 
     /**
-     * @notice See {IERC1155GeneralMint-mintOneToMultipleRecipients}
+     * @notice See {IERC1155GeneralMint-mintSeedToOneRecipient}
      */
-    function mintOneToMultipleRecipients(address[] calldata recipients) external onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
-        uint256 recipientsLength = recipients.length;
-        uint256 tempSupply = _nextTokenId() - 1; // cache
-
-        for (uint256 i = 0; i < recipientsLength; i++) {
-            _mint(recipients[i], 1);
-        }
-
-        _requireLimitSupply(tempSupply + recipientsLength);
-
-        // process mint on custom renderer if present
-        CustomRendererConfig memory _customRendererConfig = customRendererConfig;
-        if (_customRendererConfig.processMintDataOnRenderer) {
-            IHighlightRenderer(_customRendererConfig.renderer).processMultipleRecipientMint(
-                tempSupply + 1,
-                1,
-                recipients
-            );
-        }
-    }
-
-    /**
-     * @notice See {IERC1155GeneralMint-mintSameAmountToMultipleRecipients}
-     */
-    function mintSameAmountToMultipleRecipients(
-        address[] calldata recipients,
-        uint256 amount
-    ) external onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
-        uint256 recipientsLength = recipients.length;
-        uint256 tempSupply = _nextTokenId() - 1; // cache
-
-        for (uint256 i = 0; i < recipientsLength; i++) {
-            _mint(recipients[i], amount);
-        }
-
-        _requireLimitSupply(tempSupply + recipientsLength * amount);
-
-        // process mint on custom renderer if present
-        CustomRendererConfig memory _customRendererConfig = customRendererConfig;
-        if (_customRendererConfig.processMintDataOnRenderer) {
-            IHighlightRenderer(_customRendererConfig.renderer).processMultipleRecipientMint(
-                tempSupply + 1,
-                amount,
-                recipients
-            );
-        }
+    function mintSeedToOneRecipient(address recipient, bytes32 seed) external virtual onlyMinter nonReentrant returns (uint256) {
+        revert("Not supported.");
     }
 
     /**
@@ -269,40 +204,39 @@ abstract contract ERC1155GeneralSequenceBase is ERC1155Base, ERC1155AURIStorageU
      * @notice Return the total number of minted tokens on the collection
      */
     function supply() external view returns (uint256) {
-        return ERC1155AUpgradeable._totalMinted();
+        return _tokenCount;
     }
 
     /**
      * @notice See {IERC1155-burn}. Overrides default behaviour to check associated tokenManager.
      */
-    function burn(uint256 tokenId) public nonReentrant {
-        address _manager = tokenManager(tokenId);
+    function burn(address from, uint256 id, uint256 amount) public nonReentrant {
+        address _manager = tokenManager(id);
         address msgSender = _msgSender();
 
         if (_manager != address(0) && IERC165Upgradeable(_manager).supportsInterface(type(IPostBurn).interfaceId)) {
-            address owner = ownerOf(tokenId);
-            IPostBurn(_manager).postBurn(msgSender, owner, tokenId);
+            IPostBurn(_manager).postBurn(msgSender, msgSender, id);
         } else {
             // default to restricting burn to owner or operator if a valid TM isn't present
-            if (!_isApprovedOrOwner(msgSender, tokenId)) {
+            if (!isApprovedForAll(msgSender, address(this))) {
                 _revert(Unauthorized.selector);
             }
         }
 
-        _burn(tokenId);
+        _burn(from, id, amount);
 
-        observability.emitTransfer(msgSender, address(0), tokenId);
+        observability.emitTransfer(msgSender, address(0), id);
     }
 
     /**
      * @notice Overrides tokenURI to first rotate the token id
      * @param tokenId ID of token to get uri for
      */
-    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+    function uri(uint256 tokenId) public view virtual override returns (string memory) {
         if (customRendererConfig.renderer != address(0)) {
             return IHighlightRenderer(customRendererConfig.renderer).tokenURI(tokenId);
         }
-        return ERC1155AURIStorageUpgradeable.tokenURI(tokenId);
+        return ERC1155URIStorageUpgradeable.uri(tokenId);
     }
 
     /**
@@ -310,23 +244,36 @@ abstract contract ERC1155GeneralSequenceBase is ERC1155Base, ERC1155AURIStorageU
      */
     function supportsInterface(
         bytes4 interfaceId
-    ) public view virtual override(IERC165Upgradeable, ERC1155AUpgradeable) returns (bool) {
-        return ERC1155AUpgradeable.supportsInterface(interfaceId);
+    ) public view virtual override(IERC165Upgradeable, ERC1155Upgradeable) returns (bool) {
+        return ERC1155Upgradeable.supportsInterface(interfaceId);
     }
 
     /**
      * @notice Hook called after transfers
+     * @param operator Address which called the function
      * @param from Account token is being transferred from
      * @param to Account token is being transferred to
-     * @param tokenId ID of token being transferred
+     * @param ids IDs of tokens being transferred
+     * @param amounts Amounts of tokens being transferred
+     * @param data Additional data passed to hook
      */
-    function _afterTokenTransfers(address from, address to, uint256 tokenId) internal override {
-        address _manager = tokenManager(tokenId);
-        if (_manager != address(0) && IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)) {
-            IPostTransfer(_manager).postSafeTransferFrom(_msgSender(), from, to, tokenId, "");
-        }
+    function _afterTokenTransfer(
+        address operator,
+        address from,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    ) internal override {
+        for (uint i = 0; i < ids.length; i++) {
+            uint tokenId = ids[i];
+            address _manager = tokenManager(tokenId);
+            if (_manager != address(0) && IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)) {
+                IPostTransfer(_manager).postSafeTransferFrom(_msgSender(), from, to, tokenId, "");
+            }
 
-        observability.emitTransfer(from, to, tokenId);
+            observability.emitTransfer(from, to, tokenId);
+        }
     }
 
     /**
@@ -346,8 +293,8 @@ abstract contract ERC1155GeneralSequenceBase is ERC1155Base, ERC1155AURIStorageU
     /**
      * @dev For more efficient reverts.
      */
-    function _revert(bytes4 errorSelector) internal pure virtual override(ERC1155AUpgradeable, ERC1155Base) {
-        ERC1155AUpgradeable._revert(errorSelector);
+    function _revert(bytes4 errorSelector) internal pure virtual override(ERC1155Upgradeable, ERC1155Base) {
+        ERC1155Upgradeable._revert(errorSelector);
     }
 
     /**

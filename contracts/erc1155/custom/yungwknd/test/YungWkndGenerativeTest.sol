@@ -4,10 +4,10 @@ pragma solidity 0.8.10;
 import "../YungWkndGenerative.sol";
 
 contract YungWkndGenerativeTest {
-    YungWkndGenerative public bitRot;
+    YungWkndGenerative public yungWknd;
 
-    constructor(address bitRotAddress) {
-        bitRot = YungWkndGenerative(bitRotAddress);
+    constructor(address yungWkndAddress) {
+        yungWknd = YungWkndGenerative(yungWkndAddress);
     }
 
     /**
@@ -16,7 +16,7 @@ contract YungWkndGenerativeTest {
     function test() external {
         // updating renderer should fail, only owner can do it
         bool updateFailed = false;
-        try bitRot.updateRenderer(address(0)) {} catch {
+        try yungWknd.updateRenderer(address(0)) {} catch {
             updateFailed = true;
         }
         if (!updateFailed) {
@@ -26,25 +26,12 @@ contract YungWkndGenerativeTest {
         // test seed details recording
         _getSeedDetailsShouldFail(1);
 
-        bitRot.mintAmountToOneRecipient(msg.sender, 2);
-        _validateTokenRange(1, 2);
-
-        bitRot.mintOneToOneRecipient(msg.sender);
+        yungWknd.mintOneToOneRecipient(msg.sender);
         _validateTokenRange(3, 1);
         _validateTokenRange(1, 3);
         _getSeedDetailsShouldFail(4);
 
-        bitRot.mintAmountToOneRecipient(msg.sender, 12);
-        _validateTokenRange(4, 12);
-        _validateTokenRange(1, 15);
-        _getSeedDetailsShouldFail(16);
-
-        bitRot.mintAmountToOneRecipient(msg.sender, 4);
-        _validateTokenRange(16, 4);
-        _validateTokenRange(1, 19);
-        _getSeedDetailsShouldFail(20);
-
-        bitRot.mintOneToOneRecipient(msg.sender);
+        yungWknd.mintOneToOneRecipient(msg.sender);
         _validateTokenRange(20, 1);
         _validateTokenRange(1, 20);
         _getSeedDetailsShouldFail(21);
@@ -52,7 +39,7 @@ contract YungWkndGenerativeTest {
 
     function _validateTokenRange(uint256 start, uint256 num) private {
         for (uint256 i = start; i < start + num; i++) {
-            YungWkndGenerative.SeedDetails memory seedDetails = bitRot.getSeedDetails(i);
+            YungWkndGenerative.SeedDetails memory seedDetails = yungWknd.getSeedDetails(i);
             if (
                 seedDetails.previousBlockHash != blockhash(block.number - 1) ||
                 seedDetails.blockTimestamp != block.timestamp
@@ -64,7 +51,7 @@ contract YungWkndGenerativeTest {
 
     function _getSeedDetailsShouldFail(uint256 tokenId) private {
         bool getSeedFailed = false;
-        try bitRot.getSeedDetails(tokenId) {} catch {
+        try yungWknd.getSeedDetails(tokenId) {} catch {
             getSeedFailed = true;
         }
         if (!getSeedFailed) {

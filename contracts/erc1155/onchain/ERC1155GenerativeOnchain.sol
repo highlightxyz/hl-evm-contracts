@@ -74,7 +74,7 @@ contract ERC1155GenerativeOnchain is ERC1155GeneralSequenceBase, OnchainFileStor
         __ERC1155URIStorage_init();
         __ERC1155Base_initialize(creator, defaultRoyalty, _defaultTokenManager);
         __ERC2771ContextUpgradeable__init__(trustedForwarder);
-        __ERC1155A_init(_name, _symbol);
+        __ERC1155_init(_name, _symbol);
         // deprecate but keep input for backwards-compatibility:
         // __MarketplaceFilterer__init__(useMarketplaceFiltererRegistry);
         _minters.add(initialMinter);

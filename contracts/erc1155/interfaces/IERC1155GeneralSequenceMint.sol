@@ -13,22 +13,16 @@ interface IERC1155GeneralSequenceMint {
     function mintOneToOneRecipient(address recipient) external returns (uint256);
 
     /**
-     * @notice Mint an amount of tokens to one recipient
-     * @param recipient Recipient of minted NFTs
-     * @param amount Amount of NFTs minted
+     * @notice Mint one token to one recipient
+     * @param recipient Recipient of minted NFT
+     * @param tokenId Token id to mint another copy of
      */
-    function mintAmountToOneRecipient(address recipient, uint256 amount) external;
+    function mintExistingOneToOneRecipient(address recipient, uint256 tokenId) external returns (uint256);
 
     /**
-     * @notice Mint one token to multiple recipients. Useful for use-cases like airdrops
-     * @param recipients Recipients of minted NFTs
+     * @notice Mint one token to one recipient
+     * @param recipient Recipient of minted NFT
+     * @param seed Seed to mint specifically
      */
-    function mintOneToMultipleRecipients(address[] calldata recipients) external;
-
-    /**
-     * @notice Mint the same amount of tokens to multiple recipients
-     * @param recipients Recipients of minted NFTs
-     * @param amount Amount of NFTs minted to each recipient
-     */
-    function mintSameAmountToMultipleRecipients(address[] calldata recipients, uint256 amount) external;
+    function mintSeedToOneRecipient(address recipient, bytes32 seed) external returns (uint256);
 }
