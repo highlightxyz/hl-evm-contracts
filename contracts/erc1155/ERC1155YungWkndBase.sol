@@ -8,13 +8,14 @@ import "../tokenManager/interfaces/IPostBurn.sol";
 import "./interfaces/IERC1155GeneralSequenceMint.sol";
 import "./custom/interfaces/IHighlightRenderer.sol";
 import "../utils/ERC1155/ERC1155URIStorageUpgradeable.sol";
+import "./interfaces/IERC1155YungWkndMint.sol";
 
 /**
  * @title Generalized Base ERC1155
  * @author highlight.xyz
  * @notice Generalized Base NFT smart contract
  */
-abstract contract ERC1155GeneralSequenceBase is ERC1155Base, ERC1155URIStorageUpgradeable, IERC1155GeneralSequenceMint {
+abstract contract ERC1155YungWkndBase is ERC1155Base, ERC1155URIStorageUpgradeable, IERC1155YungWkndMint {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 _tokenCount;

@@ -1,18 +1,20 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.10;
 
-import "./ERC1155Base.sol";
-import "../tokenManager/interfaces/IPostTransfer.sol";
-import "../tokenManager/interfaces/IPostBurn.sol";
-import "./interfaces/IERC1155GeneralMint.sol";
-import "./ERC1155GeneralSequenceBase.sol";
+import "../ERC1155Base.sol";
+import "../../tokenManager/interfaces/IPostTransfer.sol";
+import "../../tokenManager/interfaces/IPostBurn.sol";
+import "../interfaces/IERC1155GeneralMint.sol";
+import "../ERC1155YungWkndBase.sol";
+import "./OnchainFileStorage.sol";
 
 /**
  * @title Generative ERC1155
+ * @dev Inherits from OnchainFileStorage for file handling
  * @author highlight.xyz
  * @notice Generative NFT smart contract
  */
-contract ERC1155Generative is ERC1155GeneralSequenceBase {
+contract ERC1155YungWkndOnChain is ERC1155YungWkndBase, OnchainFileStorage {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /**
@@ -94,5 +96,33 @@ contract ERC1155Generative is ERC1155GeneralSequenceBase {
 
     function generativeCodeUri() external view returns (string memory) {
         return _generativeCodeURI;
+    }
+
+    /**
+     * @notice Used for meta-transactions
+     */
+    function _msgSender()
+        internal
+        view
+        override(ERC1155YungWkndBase, ContextUpgradeable)
+        returns (address sender)
+    {
+        return ERC1155YungWkndBase._msgSender();
+    }
+
+    /**
+     * @notice Used for meta-transactions
+     */
+    function _msgData() internal view override(ERC1155YungWkndBase, ContextUpgradeable) returns (bytes calldata) {
+        return ERC1155YungWkndBase._msgData();
+    }
+
+    /**
+     * @dev For more efficient reverts.
+     */
+    function _revert(
+        bytes4 errorSelector
+    ) internal pure virtual override(ERC1155YungWkndBase, OnchainFileStorage) {
+        ERC1155YungWkndBase._revert(errorSelector);
     }
 }

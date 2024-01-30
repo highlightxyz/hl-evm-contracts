@@ -2,12 +2,12 @@
 pragma solidity 0.8.10;
 
 import "./interfaces/IYungWkndRenderer.sol";
-import "../../onchain/ERC1155GenerativeOnchain.sol";
+import "../../onchain/ERC1155YungWkndOnChain.sol";
 
 /**
  * @title YungWkndGenerative (ERC1155)
  */
-contract YungWkndGenerative is ERC1155GenerativeOnchain {
+contract YungWkndGenerative is ERC1155YungWkndOnChain {
     /**
      * @notice Throw when mint details are queried for a token that hasn't been minted
      */
