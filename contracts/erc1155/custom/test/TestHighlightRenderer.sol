@@ -2,8 +2,8 @@
 pragma solidity 0.8.10;
 
 import "../interfaces/IHighlightRenderer.sol";
-import "../../interfaces/IERC1155GeneralSupplyMetadata.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "../../ERC1155YungWkndBase.sol";
 
 /**
  * @notice Mock implementation of IHighlightRenderer
@@ -70,7 +70,7 @@ contract TestHighlightRenderer is IHighlightRenderer {
         // typically return a base64-encoded json
         // probably store a preview images base uri globally (stored via Highlight)
         // for demonstration purposes, just return a simple string here:
-        uint256 numTokens = IERC1155GeneralSupplyMetadata(msg.sender).supply();
+        uint256 numTokens = ERC1155YungWkndBase(msg.sender).supply();
         return concatenateSeedDetails(getSeedDetails(tokenId, numTokens + 1, msg.sender), tokenId);
     }
 
