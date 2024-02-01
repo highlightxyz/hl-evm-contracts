@@ -5,7 +5,7 @@ import "./ERC1155Base.sol";
 import "../metadata/MetadataEncryption.sol";
 import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
-import "./custom/interfaces/IHighlightRenderer.sol";
+import "./interfaces/IHighlightRenderer.sol";
 import "../utils/ERC1155/ERC1155URIStorageUpgradeable.sol";
 import "./interfaces/IERC1155YungWkndMint.sol";
 
