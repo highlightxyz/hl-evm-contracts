@@ -4,7 +4,6 @@ pragma solidity 0.8.10;
 import "../ERC1155Base.sol";
 import "../../tokenManager/interfaces/IPostTransfer.sol";
 import "../../tokenManager/interfaces/IPostBurn.sol";
-import "../interfaces/IERC1155GeneralMint.sol";
 import "../ERC1155YungWkndBase.sol";
 import "./OnchainFileStorage.sol";
 

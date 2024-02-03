@@ -83,7 +83,7 @@ abstract contract ERC1155YungWkndBase is ERC1155Base, ERC1155URIStorageUpgradeab
     event LimitSupplySet(uint256 indexed newLimitSupply);
 
     /**
-     * @notice See {IERC1155GeneralMint-mintOneToOneRecipient}
+     * @notice See {IERC1155YungWkndMint-mintOneToOneRecipient}
      */
     function mintOneToOneRecipient(address recipient) external virtual onlyMinter nonReentrant returns (uint256) {
         if (_mintFrozen == 1) {
@@ -105,14 +105,14 @@ abstract contract ERC1155YungWkndBase is ERC1155Base, ERC1155URIStorageUpgradeab
     }
 
     /**
-     * @notice See {IERC1155GeneralMint-mintExistingOneToOneRecipient}
+     * @notice See {IERC1155YungWkndMint-mintExistingOneToOneRecipient}
      */
     function mintExistingOneToOneRecipient(address recipient, uint256 tokenId) external virtual onlyMinter nonReentrant returns (uint256) {
         revert("Not supported.");
     }
 
     /**
-     * @notice See {IERC1155GeneralMint-mintSeedToOneRecipient}
+     * @notice See {IERC1155YungWkndMint-mintSeedToOneRecipient}
      */
     function mintSeedToOneRecipient(address recipient, bytes32 seed) external virtual onlyMinter nonReentrant returns (uint256) {
         revert("Not supported.");
