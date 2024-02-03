@@ -91,9 +91,9 @@ abstract contract ERC1155YungWkndBase is ERC1155Base, ERC1155URIStorageUpgradeab
         }
 
         uint256 tempSupply = _tokenCount;
-        _requireLimitSupply(tempSupply);
+        _requireLimitSupply(_tokenCount);
 
-        _mint(recipient, _tokenCount, 1, "");
+        _mint(recipient, tempSupply, 1, "");
 
         // process mint on custom renderer if present
         CustomRendererConfig memory _customRendererConfig = customRendererConfig;
@@ -108,14 +108,37 @@ abstract contract ERC1155YungWkndBase is ERC1155Base, ERC1155URIStorageUpgradeab
      * @notice See {IERC1155YungWkndMint-mintExistingOneToOneRecipient}
      */
     function mintExistingOneToOneRecipient(address recipient, uint256 tokenId) external virtual onlyMinter nonReentrant returns (uint256) {
-        revert("Not supported.");
+        if (_mintFrozen == 1) {
+            _revert(MintFrozen.selector);
+        }
+
+        uint256 tempSupply = tokenId;
+        _requireLimitSupply(tempSupply);
+
+        _mint(recipient, tokenId, 1, "");
+        return tempSupply;
     }
 
     /**
      * @notice See {IERC1155YungWkndMint-mintSeedToOneRecipient}
      */
     function mintSeedToOneRecipient(address recipient, bytes32 seed) external virtual onlyMinter nonReentrant returns (uint256) {
-        revert("Not supported.");
+        if (_mintFrozen == 1) {
+            _revert(MintFrozen.selector);
+        }
+
+        uint256 tempSupply = _tokenCount;
+        _requireLimitSupply(_tokenCount);
+
+        _mint(recipient, tempSupply, 1, "");
+
+        // process mint on custom renderer if present
+        CustomRendererConfig memory _customRendererConfig = customRendererConfig;
+        if (_customRendererConfig.processMintDataOnRenderer) {
+            IHighlightRenderer(_customRendererConfig.renderer).processOneRecipientMint(tempSupply, 1, recipient);
+        }
+
+        return tempSupply;
     }
 
     /**
