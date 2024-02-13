@@ -98,6 +98,7 @@ abstract contract ERC1155YungWkndBase is ERC1155Base, ERC1155URIStorageUpgradeab
         // process mint on custom renderer if present
         CustomRendererConfig memory _customRendererConfig = customRendererConfig;
         if (_customRendererConfig.processMintDataOnRenderer) {
+            // Processes mint / randomness on renderer contract
             IHighlightRenderer(_customRendererConfig.renderer).processOneRecipientMint(tempSupply, 1, recipient);
         }
 
@@ -135,7 +136,8 @@ abstract contract ERC1155YungWkndBase is ERC1155Base, ERC1155URIStorageUpgradeab
         // process mint on custom renderer if present
         CustomRendererConfig memory _customRendererConfig = customRendererConfig;
         if (_customRendererConfig.processMintDataOnRenderer) {
-            IHighlightRenderer(_customRendererConfig.renderer).processOneRecipientMint(tempSupply, 1, recipient);
+            // Processes mint / randomness on renderer contract
+            IHighlightRenderer(_customRendererConfig.renderer).processRecipientMintWithHash(tempSupply, seed);
         }
 
         return tempSupply;
