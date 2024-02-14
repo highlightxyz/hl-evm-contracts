@@ -353,6 +353,7 @@ contract DiscreteDutchAuctionMechanic is MechanicMintManagerClientUpgradeable, U
         bytes32 mechanicVectorId,
         address recipient,
         uint32 numToMint,
+        address minter,
         MechanicVectorMetadata calldata mechanicVectorMetadata,
         bytes calldata data
     ) external payable onlyMintManager {
@@ -366,6 +367,7 @@ contract DiscreteDutchAuctionMechanic is MechanicMintManagerClientUpgradeable, U
         bytes32 mechanicVectorId,
         address recipient,
         uint256[] calldata tokenIds,
+        address minter,
         MechanicVectorMetadata calldata mechanicVectorMetadata,
         bytes calldata data
     ) external payable onlyMintManager {
