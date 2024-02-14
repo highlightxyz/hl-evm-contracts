@@ -20,6 +20,7 @@ interface IMechanic is IMechanicData {
      * @param mechanicVectorId Global ID identifying mint vector, using this mechanic
      * @param recipient Mint recipient
      * @param numToMint Number of tokens to mint
+     * @param minter Account that called mint on the MintManager
      * @param mechanicVectorMetadata Mechanic vector metadata
      * @param data Custom data that can be deserialized and processed according to implementation
      */
@@ -27,6 +28,7 @@ interface IMechanic is IMechanicData {
         bytes32 mechanicVectorId,
         address recipient,
         uint32 numToMint,
+        address minter,
         MechanicVectorMetadata calldata mechanicVectorMetadata,
         bytes calldata data
     ) external payable;
@@ -36,6 +38,7 @@ interface IMechanic is IMechanicData {
      * @param mechanicVectorId Global ID identifying mint vector, using this mechanic
      * @param recipient Mint recipient
      * @param tokenIds IDs of tokens to mint
+     * @param minter Account that called mint on the MintManager
      * @param mechanicVectorMetadata Mechanic vector metadata
      * @param data Custom data that can be deserialized and processed according to implementation
      */
@@ -43,6 +46,7 @@ interface IMechanic is IMechanicData {
         bytes32 mechanicVectorId,
         address recipient,
         uint256[] calldata tokenIds,
+        address minter,
         MechanicVectorMetadata calldata mechanicVectorMetadata,
         bytes calldata data
     ) external payable;
