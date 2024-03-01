@@ -12,6 +12,16 @@ import "../utils/Ownable.sol";
  * @author highlight.xyz
  */
 contract ERC1155YungWkndRenderer is IHighlightRenderer {
+
+    /**
+     * 
+     * @notice Emitted when custom seed is set for a token
+     * @param collection Collection address
+     * @param seed Seed for token
+     * @param tokenId Token ID
+     */
+    event CustomSeed(address indexed collection, bytes32 indexed seed, uint256 indexed tokenId);
+
     /**
      * @notice Throw when invalid input to process mint data
      */
@@ -98,6 +108,8 @@ contract ERC1155YungWkndRenderer is IHighlightRenderer {
         collectionSeedInputs[msg.sender].push(
             UserInputHash(uint176(tokenId), inputHash)
         );
+
+        emit CustomSeed(msg.sender, inputHash, tokenId);
     }
 
     /**
