@@ -102,12 +102,24 @@ contract ERC1155YungWkndRenderer is IHighlightRenderer {
         );
     }
 
+    function processMultipleRecipientMint(
+        uint256 firstTokenId,
+        uint256 numTokensPerRecipient,
+        address[] calldata orderedRecipients
+    ) external {
+        for (uint i = 0; i < orderedRecipients.length; i++) {
+            collectionSeedInputs[msg.sender].push(
+                SeedInput(blockhash(block.number - 1), uint48(block.timestamp), uint176(firstTokenId), uint32(numTokensPerRecipient))
+            );
+        }
+    }
+
     /**
      * @notice See {IHlRenderer-processRecipientMintWithHash}
      */
     function processRecipientMintWithHash(uint256 tokenId, bytes32 inputHash) external {
-        collectionSeedInputs[msg.sender].push(
-            UserInputHash(uint176(tokenId), inputHash)
+        userInputHashes[msg.sender].push(
+            UserInputHash(inputHash, uint176(tokenId))
         );
 
         emit CustomSeed(msg.sender, inputHash, tokenId);
