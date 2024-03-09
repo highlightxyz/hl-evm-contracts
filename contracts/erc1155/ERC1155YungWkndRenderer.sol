@@ -2,6 +2,7 @@
 pragma solidity 0.8.10;
 
 import "./interfaces/IHighlightRenderer.sol";
+import "./interfaces/IHLFS.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "../utils/Ownable.sol";
@@ -259,7 +260,7 @@ contract ERC1155YungWkndRenderer is IHighlightRenderer {
     /**
      * @notice Get a token's seed input
      */
-    function getCuratedHash(uint256 tokenId, address collection) public view returns (bytes32 memory) {
+    function getCuratedHash(uint256 tokenId, address collection) public view returns (bytes32) {
         // First, check the userInputHashes
         UserInputHash[] memory _userInputHashes = userInputHashes[collection];
         uint256 numInputs = _userInputHashes.length;
