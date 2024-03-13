@@ -507,7 +507,7 @@ describe("ERC1155 YungWknd functionality", () => {
         it("Owner can set granular royalties", async function () {
           await expect(
             yw.setGranularRoyalties(
-              [0, 1],
+              [1, 2],
               [
                 { recipientAddress: fan1.address, royaltyPercentageBPS: 100 },
                 { recipientAddress: fan1.address, royaltyPercentageBPS: 1000 },
@@ -532,11 +532,11 @@ describe("ERC1155 YungWknd functionality", () => {
 
           await expect(yw.mintOneToOneRecipient(editionsOwner.address)).to.emit(yw, "TransferSingle");
 
-          const royaltyInfo1 = await yw.royaltyInfo(0, 10000);
+          const royaltyInfo1 = await yw.royaltyInfo(1, 10000);
           expect(royaltyInfo1.receiver).to.eql(fan1.address);
           expect(royaltyInfo1.royaltyAmount.toNumber()).to.eql(100);
 
-          const royaltyInfo2 = await yw.royaltyInfo(1, 10000);
+          const royaltyInfo2 = await yw.royaltyInfo(2, 10000);
           expect(royaltyInfo2.receiver).to.eql(fan1.address);
           expect(royaltyInfo2.royaltyAmount.toNumber()).to.eql(1000);
         });
@@ -558,7 +558,7 @@ describe("ERC1155 YungWknd functionality", () => {
 
           await expect(
             yw.setGranularRoyalties(
-              [0, 1],
+              [1, 2],
               [
                 { recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 100 },
                 { recipientAddress: ethers.constants.AddressZero, royaltyPercentageBPS: 1000 },
@@ -582,18 +582,18 @@ describe("ERC1155 YungWknd functionality", () => {
             .to.emit(yw, BaseEvents.DefaultRoyaltySet)
             .withArgs(fan1.address, 100);
 
-          const royaltyInfo1 = await yw.royaltyInfo(0, 10000);
+          const royaltyInfo1 = await yw.royaltyInfo(1, 10000);
           expect(royaltyInfo1.receiver).to.eql(fan1.address);
           expect(royaltyInfo1.royaltyAmount.toNumber()).to.eql(100);
 
           await expect(
             yw.setGranularRoyalties(
-              [0],
+              [1],
               [{ recipientAddress: editionsOwner.address, royaltyPercentageBPS: 1000 }],
             ),
           ).to.emit(yw, BaseEvents.GranularRoyaltiesSet);
 
-          const royaltyInfo2 = await yw.royaltyInfo(0, 10000);
+          const royaltyInfo2 = await yw.royaltyInfo(1, 10000);
           expect(royaltyInfo2.receiver).to.eql(editionsOwner.address);
           expect(royaltyInfo2.royaltyAmount.toNumber()).to.eql(1000);
 

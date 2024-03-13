@@ -17,7 +17,7 @@ import "./interfaces/IERC1155YungWkndMint.sol";
 abstract contract ERC1155YungWkndBase is ERC1155Base, ERC1155URIStorageUpgradeable, IERC1155YungWkndMint {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    uint256 _tokenCount;
+    uint256 _tokenCount = 1;
 
     /**
      * @notice Throw when attempting to mint, while mint is frozen
