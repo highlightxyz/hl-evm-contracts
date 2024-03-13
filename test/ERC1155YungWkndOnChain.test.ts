@@ -4,8 +4,6 @@ import { ethers } from "hardhat";
 
 import {
   AuctionManager,
-  ERC721Editions,
-  ERC721SingleEdition,
   EditionsMetadataRenderer,
   InvalidRoyaltyManager,
   InvalidTokenManager,
@@ -19,7 +17,7 @@ import {
   ERC1155YungWkndOnChain,
 } from "../types";
 import { Errors } from "./__utils__/data";
-import { setupEditions, setupSingleEdition, setupSystem, setupYungWknd } from "./__utils__/helpers";
+import { setupSystem, setupYungWknd } from "./__utils__/helpers";
 
 enum BaseEvents {
   MinterRegistrationChanged = "MinterRegistrationChanged",
@@ -289,7 +287,7 @@ describe("ERC1155 YungWknd functionality", () => {
 
       describe("Current default token manager existing", function () {
         beforeEach(async function () {
-          yw = await setupEditions(
+          yw = await setupYungWknd(
             observability.address,
             editionsImplementation,
             mintManager.address,
