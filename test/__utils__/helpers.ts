@@ -6,6 +6,8 @@ import {
   AuctionManager__factory,
   DiscreteDutchAuctionMechanic,
   DiscreteDutchAuctionMechanic__factory,
+  ERC1155YungWkndOnChain,
+  ERC1155YungWkndOnChain__factory,
   ERC721Editions,
   ERC721EditionsDFS,
   ERC721EditionsDFS__factory,
@@ -304,6 +306,96 @@ export const setupEditions = async (
 
   return multipleEditionsCreator;
 };
+
+// sets up MultipleEditions without first edition
+export const setupYungWknd = async (
+  observabilityAddress: string,
+  editionsImplementationAddress: string,
+  mintManagerAddress: string,
+  auctionManagerAddress: string,
+  trustedForwarderAddress: string,
+  emrAddress: string,
+  creator: SignerWithAddress,
+  _directMint: OnchainMintVectorParams | null = null,
+  _mechanicMint: OnchainDutchAuctionParams | null = null,
+  defaultTokenManager = ethers.constants.AddressZero,
+  royaltyRecipient = ethers.constants.AddressZero,
+  royaltyPercentage = 0,
+  useMarketplaceFilter = false,
+  name = "dummy",
+  symbol = "DMY",
+  contractUri = "dummyContractMetadata",
+  baseUri = "baseUri",
+  codeUri = "codeUri",
+  limitSupply = 0,
+): Promise<ERC1155YungWkndOnChain> => {
+  const initializeData = ethers.utils.defaultAbiCoder.encode(
+    [
+      "address",
+      "string",
+      "tuple(address, uint16)",
+      "address",
+      "string",
+      "string",
+      "address",
+      "address",
+      "string",
+      "string",
+      "uint256",
+      "bool",
+    ],
+    [
+      creator.address,
+      contractUri,
+      [royaltyRecipient, royaltyPercentage],
+      defaultTokenManager,
+      name,
+      symbol,
+      trustedForwarderAddress,
+      mintManagerAddress,
+      codeUri,
+      baseUri,
+      limitSupply,
+      useMarketplaceFilter,
+    ],
+  );
+
+  const OnChainC = await (
+    await ethers.getContractFactory("ERC1155YungWkndOnChain", creator)
+  ).deploy();
+
+
+
+  //   editionsImplementationAddress,
+  //   initializeData,
+  //   ethers.utils.arrayify("0x"),
+  //   0,
+  //   ethers.constants.AddressZero,
+  //   {
+  //     recipientAddress: royaltyRecipient,
+  //     royaltyPercentageBPS: royaltyPercentage,
+  //   },
+  //   ethers.utils.arrayify("0x"),
+  //   mintVectorData,
+  //   encodeMechanicVectorData(mintManagerAddress, creator.address, mechanicMint),
+  // );
+  const onChainC = await OnChainC.deployed();
+
+  await onChainC.initialize(
+    initializeData,
+    observabilityAddress
+  )
+
+  const multipleEditionsCreator = ERC1155YungWkndOnChain__factory.connect(onChainC.address, creator);
+
+  // if (defaultTokenManager != ethers.constants.AddressZero) {
+  //   const tx = await multipleEditionsCreator.setDefaultTokenManager(defaultTokenManager);
+  //   await tx.wait();
+  // }
+
+  return multipleEditionsCreator;
+};
+
 
 // sets up MultipleEditionsDFS without first edition
 export const setupEditionsDFS = async (
