@@ -97,6 +97,12 @@ contract CheckerboardTokenManager is ITokenManagerEditions, IPostBurn, Interface
      */
     function postBurn(address /* operator */, address /* sender */, uint256 /* id */) external pure override {}
 
+    /* solhint-disable no-empty-blocks */
+    /**
+     * @notice See {IPostBurn-postBurnAmount}
+     */
+    function postBurnAmount(address /* operator */, address /* sender */, uint256 /* id */, uint256 /* amount */) external pure override {}
+
     /* solhint-enable no-empty-blocks */
 
     /**
