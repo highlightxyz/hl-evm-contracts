@@ -172,10 +172,10 @@ contract ERC721EditionsDFS is
                 uint48 tokenLimitPerTx,
                 uint48 maxTotalClaimableViaVector,
                 uint48 maxUserClaimableViaVector,
-                bytes32 allowlistRoot
+                address currency
             ) = abi.decode(
                     mintVectorData,
-                    (address, address, uint48, uint48, uint192, uint48, uint48, uint48, bytes32)
+                    (address, address, uint48, uint48, uint192, uint48, uint48, uint48, address)
                 );
 
             IAbridgedMintVector(mintManager).createAbridgedVector(
@@ -186,14 +186,14 @@ contract ERC721EditionsDFS is
                     uint160(paymentRecipient),
                     maxTotalClaimableViaVector,
                     0,
-                    0,
+                    uint160(currency),
                     tokenLimitPerTx,
                     maxUserClaimableViaVector,
                     pricePerToken,
                     uint48(editionId), // cast down
                     true,
                     false,
-                    allowlistRoot
+                    0
                 )
             );
         }

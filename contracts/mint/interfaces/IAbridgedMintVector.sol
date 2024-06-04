@@ -70,7 +70,7 @@ interface IAbridgedMintVector {
      * @param updateTokenLimitPerTx If 1, update tokenLimitPerTx
      * @param updateMaxUserClaimableViaVector If 1, update maxUserClaimableViaVector
      * @param updatePricePerToken If 1, update pricePerToken
-     * @param updateAllowlistRoot If 1, update allowlistRoot
+     * @param updateCurrency If 1, update currency
      * @param updateRequireDirectEOA If 1, update requireDirectEOA
      * @param updateMetadata If 1, update MintVector metadata
      */
@@ -82,7 +82,7 @@ interface IAbridgedMintVector {
         uint16 updateTokenLimitPerTx;
         uint16 updateMaxUserClaimableViaVector;
         uint8 updatePricePerToken;
-        uint8 updateAllowlistRoot;
+        uint8 updateCurrency;
         uint8 updateRequireDirectEOA;
         uint8 updateMetadata;
     }
@@ -108,12 +108,6 @@ interface IAbridgedMintVector {
         bool pause,
         uint128 flexibleData
     ) external;
-
-    /**
-     * @notice Deletes on-chain vector
-     * @param vectorId ID of abridged vector to delete
-     */
-    function deleteAbridgedVector(uint256 vectorId) external;
 
     /**
      * @notice Pauses or unpauses an on-chain mint vector

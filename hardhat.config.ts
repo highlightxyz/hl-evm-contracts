@@ -1,4 +1,5 @@
 import "@nomicfoundation/hardhat-toolbox";
+import "@nomiclabs/hardhat-ethers";
 import { config as dotenvConfig } from "dotenv";
 import "hardhat-contract-sizer";
 import "hardhat-gas-reporter";
@@ -26,12 +27,14 @@ export const chainIds = {
   "polygon-mainnet": 137,
   "polygon-mumbai": 80001,
   goerli: 5,
+  sepolia: 11155111,
   arbitrum: 42161,
   "arbitrum-goerli": 421613,
   optimism: 10,
   "optimism-goerli": 420,
   base: 8453,
   "base-goerli": 84531,
+  "base-sepolia": 84532,
   zora: 7777777,
   "zora-goerli": 999,
 };
@@ -46,21 +49,25 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
 
 export function getUrl(chain: keyof typeof chainIds): string {
   if (chain === "arbitrum") {
-    return "https://arb-mainnet.g.alchemy.com/v2/6RXKTS3PtSM59L41inqVagpZW3-r_rq9";
+    return "https://arb1.arbitrum.io/rpc";
   } else if (chain === "arbitrum-goerli") {
-    return "https://arb-goerli.g.alchemy.com/v2/jK7-UD3iCOzaFUqa2L_SVI7fkdzCYfwc";
+    return "https://arbitrum-goerli-rpc.publicnode.com";
   } else if (chain === "optimism") {
-    return "https://opt-mainnet.g.alchemy.com/v2/XtgT_4vf4xad9To3EOhQpH_7i62hYhKD";
+    return "https://optimism.llamarpc.com";
   } else if (chain === "optimism-goerli") {
-    return "https://opt-goerli.g.alchemy.com/v2/COI6ezi-VSOBEQIMKbX5sImZ_mYy6urr";
+    return "https://optimism-goerli-rpc.publicnode.com";
   } else if (chain === "base") {
-    return "https://developer-access-mainnet.base.org";
+    return "https://mainnet.base.org";
   } else if (chain === "base-goerli") {
     return "https://base-goerli.public.blastapi.io";
   } else if (chain === "zora") {
     return "https://rpc.zora.co";
   } else if (chain === "zora-goerli") {
     return "https://testnet.rpc.zora.co";
+  } else if (chain === "polygon-mainnet") {
+    return "https://polygon-rpc.com/";
+  } else if (chain === "base-sepolia") {
+    return "https://base-sepolia.blockpi.network/v1/rpc/public	";
   } else {
     return "https://" + chain + ".infura.io/v3/" + infuraApiKey;
   }
@@ -74,12 +81,14 @@ const config: HardhatUserConfig = {
       polygon: process.env.POLYGONSCAN_API_KEY || "",
       polygonMumbai: process.env.POLYGONSCAN_API_KEY || "",
       goerli: process.env.ETHERSCAN_API_KEY || "",
+      sepolia: process.env.ETHERSCAN_API_KEY || "",
       optimisticEthereum: process.env.OPTIMISMSCAN_API_KEY || "",
       arbitrumOne: process.env.ARBITRUMSCAN_API_KEY || "",
       "optimism-goerli": process.env.OPTIMISMSCAN_API_KEY || "",
       "arbitrum-goerli": process.env.ARBITRUMSCAN_API_KEY || "",
       base: process.env.BASESCAN_API_KEY || "",
       "base-goerli": process.env.BASESCAN_API_KEY || "",
+      "base-sepolia": process.env.BASESCAN_API_KEY || "",
       zora: process.env.ZORASCAN_API_KEY || "",
       "zora-goerli": process.env.ZORASCAN_API_KEY || "",
     },
@@ -98,6 +107,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://api-goerli.basescan.org/api",
           browserURL: "https://goerli.basescan.org",
+        },
+      },
+      {
+        network: "base-sepolia",
+        chainId: 84532,
+        urls: {
+          apiURL: "https://api-sepolia.basescan.org/api",
+          browserURL: "https://sepolia-explorer.base.org/",
         },
       },
       {
@@ -151,6 +168,7 @@ const config: HardhatUserConfig = {
     },
     mainnet: getChainConfig("mainnet"),
     goerli: getChainConfig("goerli"),
+    sepolia: getChainConfig("sepolia"),
     "polygon-mainnet": getChainConfig("polygon-mainnet"),
     "polygon-mumbai": getChainConfig("polygon-mumbai"),
     arbitrum: getChainConfig("arbitrum"),
@@ -159,6 +177,7 @@ const config: HardhatUserConfig = {
     "optimism-goerli": getChainConfig("optimism-goerli"),
     base: getChainConfig("base"),
     "base-goerli": getChainConfig("base-goerli"),
+    "base-sepolia": getChainConfig("base-sepolia"),
     zora: getChainConfig("zora"),
     "zora-goerli": getChainConfig("zora-goerli"),
   },
@@ -187,7 +206,7 @@ const config: HardhatUserConfig = {
   },
   typechain: {
     outDir: "types",
-    target: "ethers-v5",
+    target: "ethers-v6",
   },
   contractSizer: {
     runOnCompile: true,

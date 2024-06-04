@@ -37,7 +37,7 @@ contract SingleEdition is Proxy {
      * @ param tokenLimitPerTx
      * @ param maxTotalClaimableViaVector
      * @ param maxUserClaimableViaVector
-     * @ param allowlistRoot
+     * @ param currency
      * @param mechanicVectorData Mechanic mint vector data
      * @ param mechanicVectorId Global mechanic vector ID
      * @ param mechanic Mechanic address
@@ -69,10 +69,10 @@ contract SingleEdition is Proxy {
                 uint48 tokenLimitPerTx,
                 uint48 maxTotalClaimableViaVector,
                 uint48 maxUserClaimableViaVector,
-                bytes32 allowlistRoot
+                address currency
             ) = abi.decode(
                     mintVectorData,
-                    (address, address, uint48, uint48, uint192, uint48, uint48, uint48, bytes32)
+                    (address, address, uint48, uint48, uint192, uint48, uint48, uint48, address)
                 );
 
             IAbridgedMintVector(mintManager).createAbridgedVector(
@@ -83,14 +83,14 @@ contract SingleEdition is Proxy {
                     uint160(paymentRecipient),
                     maxTotalClaimableViaVector,
                     0,
-                    0,
+                    uint160(currency),
                     tokenLimitPerTx,
                     maxUserClaimableViaVector,
                     pricePerToken,
                     0,
                     true,
                     false,
-                    allowlistRoot
+                    0
                 )
             );
         }

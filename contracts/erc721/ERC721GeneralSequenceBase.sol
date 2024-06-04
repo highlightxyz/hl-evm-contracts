@@ -7,7 +7,7 @@ import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
 import "./interfaces/IERC721GeneralSequenceMint.sol";
 import "./erc721a/ERC721AURIStorageUpgradeable.sol";
-import "./custom/interfaces/IHighlightRenderer.sol";
+import "./inchain-rendering/interfaces/IHLRenderer.sol";
 
 /**
  * @title Generalized Base ERC721
@@ -96,7 +96,7 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
         // process mint on custom renderer if present
         CustomRendererConfig memory _customRendererConfig = customRendererConfig;
         if (_customRendererConfig.processMintDataOnRenderer) {
-            IHighlightRenderer(_customRendererConfig.renderer).processOneRecipientMint(tempSupply, 1, recipient);
+            IHLRenderer(_customRendererConfig.renderer).processOneRecipientMint(tempSupply, 1, recipient);
         }
 
         return tempSupply;
@@ -118,11 +118,7 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
         // process mint on custom renderer if present
         CustomRendererConfig memory _customRendererConfig = customRendererConfig;
         if (_customRendererConfig.processMintDataOnRenderer) {
-            IHighlightRenderer(_customRendererConfig.renderer).processOneRecipientMint(
-                tempSupply + 1,
-                amount,
-                recipient
-            );
+            IHLRenderer(_customRendererConfig.renderer).processOneRecipientMint(tempSupply + 1, amount, recipient);
         }
     }
 
@@ -145,11 +141,7 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
         // process mint on custom renderer if present
         CustomRendererConfig memory _customRendererConfig = customRendererConfig;
         if (_customRendererConfig.processMintDataOnRenderer) {
-            IHighlightRenderer(_customRendererConfig.renderer).processMultipleRecipientMint(
-                tempSupply + 1,
-                1,
-                recipients
-            );
+            IHLRenderer(_customRendererConfig.renderer).processMultipleRecipientMint(tempSupply + 1, 1, recipients);
         }
     }
 
@@ -175,7 +167,7 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
         // process mint on custom renderer if present
         CustomRendererConfig memory _customRendererConfig = customRendererConfig;
         if (_customRendererConfig.processMintDataOnRenderer) {
-            IHighlightRenderer(_customRendererConfig.renderer).processMultipleRecipientMint(
+            IHLRenderer(_customRendererConfig.renderer).processMultipleRecipientMint(
                 tempSupply + 1,
                 amount,
                 recipients
@@ -300,7 +292,7 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
      */
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         if (customRendererConfig.renderer != address(0)) {
-            return IHighlightRenderer(customRendererConfig.renderer).tokenURI(tokenId);
+            return IHLRenderer(customRendererConfig.renderer).tokenURI(tokenId);
         }
         return ERC721AURIStorageUpgradeable.tokenURI(tokenId);
     }

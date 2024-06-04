@@ -6,6 +6,7 @@ import { IAuctionManager } from "./interfaces/IAuctionManager.sol";
 import { IOwnable } from "./interfaces/IOwnable.sol";
 import { IERC721GeneralMint } from "../erc721/interfaces/IERC721GeneralMint.sol";
 import { IERC721EditionMint } from "../erc721/interfaces/IERC721EditionMint.sol";
+import { IERC721EditionsStartId } from "../erc721/interfaces/IERC721EditionsStartId.sol";
 import "../utils/EIP712Upgradeable.sol";
 import { SafeMath } from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -285,10 +286,7 @@ contract AuctionManager is
 
             IAuctionManager.EditionAuction memory editionAuction = _auctionEditions[claim.auctionId];
             if (editionAuction.used == true) {
-                auction.tokenId = IERC721EditionMint(auction.collection).mintOneToRecipient(
-                    editionAuction.editionId,
-                    address(this)
-                );
+                IERC721EditionMint(auction.collection).mintOneToRecipient(editionAuction.editionId, address(this));
             } else {
                 auction.tokenId = IERC721GeneralMint(auction.collection).mintOneToOneRecipient(address(this));
             }
@@ -319,14 +317,22 @@ contract AuctionManager is
     function fulfillAuction(bytes32 auctionId) external override auctionIsLiveOnChain(auctionId) nonReentrant {
         IAuctionManager.EnglishAuction memory auction = _auctions[auctionId];
         IAuctionManager.HighestBidderData memory highestBidderData = _highestBidders[auctionId];
+        IAuctionManager.EditionAuction memory editionData = _auctionEditions[auctionId];
         require(block.timestamp > auction.endTime && auction.endTime != 0, "Auction hasn't ended");
 
         // send nft to recipient as preferred by winning bidder
+
+        // use edition to transfer (calculate tokenId on the fly)
+        uint256 tokenId = auction.tokenId;
+        if (editionData.used) {
+            tokenId = IERC721EditionsStartId(auction.collection).editionStartId(editionData.editionId);
+        }
+
         try
             IERC721(auction.collection).safeTransferFrom(
                 address(this),
                 highestBidderData.preferredNFTRecipient,
-                auction.tokenId
+                tokenId
             )
         {} catch {
             // encourage fulfiller to urge highest bidder to update their preferred nft recipient
@@ -369,6 +375,34 @@ contract AuctionManager is
         );
 
         _auctions[auctionId].state = AuctionState.FULFILLED;
+    }
+
+    function cleanup() external {
+        bytes32 auc6Id = 0x3635643538626564343763383530306366376633383630310000000000000000;
+        bytes32 auc1Id = 0x3635643537656362626539653766323466383839393738340000000000000000;
+
+        // handle sending of money of auc1
+        IAuctionManager.EnglishAuction memory auction = _auctions[auc1Id];
+        require(auction.state != AuctionState.FULFILLED, "a");
+        IAuctionManager.HighestBidderData memory highestBidderData = _highestBidders[auc1Id];
+        uint256 platformCut = highestBidderData.amount;
+        require(platformCut == 30000000000000000, "a.5");
+        (bool sentToPlatform, bytes memory dataPlatform) = _platform.call{ value: platformCut }("");
+        require(sentToPlatform, "Failed to send native gas token to platform");
+
+        // handle sending nft of auc6
+        IAuctionManager.EnglishAuction memory auctionAuc6 = _auctions[auc6Id];
+        require(auctionAuc6.state == AuctionState.FULFILLED, "b");
+        IAuctionManager.HighestBidderData memory highestBidderDataAuc6 = _highestBidders[auc6Id];
+        IAuctionManager.EditionAuction memory editionData = _auctionEditions[auc6Id];
+        require(editionData.editionId == 6, "c");
+        uint256 tokenId = IERC721EditionsStartId(auction.collection).editionStartId(editionData.editionId);
+        require(tokenId == 7, "d");
+        IERC721(auction.collection).safeTransferFrom(
+            address(this),
+            highestBidderDataAuc6.preferredNFTRecipient,
+            tokenId
+        );
     }
 
     /**

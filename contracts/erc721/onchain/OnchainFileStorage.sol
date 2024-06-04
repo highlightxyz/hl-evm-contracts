@@ -1,6 +1,7 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.10;
 
+import "./Bytecode.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
@@ -105,40 +106,39 @@ abstract contract OnchainFileStorage is OwnableUpgradeable {
         uint256 fileStorageAddressesLength = fileStorageAddresses.length;
         string memory contents = "";
 
-        for (uint256 i = 0; i < fileStorageAddressesLength; i++) {
-            contents = string(
-                abi.encodePacked(
-                    contents,
-                    string(_readBytecode(fileStorageAddresses[i], 1, fileStorageAddresses[i].code.length - 1))
-                )
-            );
-        }
+        // @author of the following section: @xaltgeist (0x16cc845d144a283d1b0687fbac8b0601cc47a6c3 on Ethereum mainnet)
+        // edited with HL FS -like variable names
+        uint256 size;
+        uint ptr = 0x20;
+        address currentChunk;
+        unchecked {
+            // solhint-disable-next-line no-inline-assembly
+            assembly {
+                contents := mload(0x40)
+            }
 
+            for (uint i = 0; i < fileStorageAddressesLength; i++) {
+                currentChunk = fileStorageAddresses[i];
+                size = Bytecode.codeSize(currentChunk) - 1;
+
+                // solhint-disable-next-line no-inline-assembly
+                assembly {
+                    extcodecopy(currentChunk, add(contents, ptr), 1, size)
+                }
+                ptr += size;
+            }
+
+            // solhint-disable-next-line no-inline-assembly
+            assembly {
+                // allocate output byte array - this could also be done without assembly
+                // by using o_code = new bytes(size)
+                // new "memory end" including padding
+                mstore(0x40, add(contents, and(add(ptr, 0x1f), not(0x1f))))
+                // store length in memory
+                mstore(contents, sub(ptr, 0x20))
+            }
+        }
         return contents;
-    }
-
-    /**
-     * @notice Read bytecode at an address
-     * @ author SOLMATE
-     */
-    function _readBytecode(address pointer, uint256 start, uint256 size) private view returns (bytes memory data) {
-        /// @solidity memory-safe-assembly
-        assembly {
-            // Get a pointer to some free memory.
-            data := mload(0x40)
-
-            // Update the free memory pointer to prevent overriding our data.
-            // We use and(x, not(31)) as a cheaper equivalent to sub(x, mod(x, 32)).
-            // Adding 31 to size and running the result through the logic above ensures
-            // the memory pointer remains word-aligned, following the Solidity convention.
-            mstore(0x40, add(data, and(add(add(size, 32), 31), not(31))))
-
-            // Store the size of the data in the first 32 byte chunk of free memory.
-            mstore(data, size)
-
-            // Copy the code into memory right after the 32 bytes we used to store the size.
-            extcodecopy(pointer, add(data, 32), start, size)
-        }
     }
 
     /**
