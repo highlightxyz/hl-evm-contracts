@@ -7,13 +7,14 @@ import "../tokenManager/interfaces/IPostTransfer.sol";
 import "../tokenManager/interfaces/IPostBurn.sol";
 import "./interfaces/IERC721GeneralMint.sol";
 import "./ERC721GeneralSequenceBase.sol";
+import "./onchain/OnchainFileStorage.sol";
 
 /**
  * @title Generalized ERC721 that expects tokenIds to increment in a monotonically increasing sequence
  * @author highlight.xyz
  * @notice Generalized NFT smart contract
  */
-contract ERC721GeneralSequence is MetadataEncryption, ERC721GeneralSequenceBase {
+contract ERC721GeneralSequence is MetadataEncryption, ERC721GeneralSequenceBase, OnchainFileStorage {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /**
@@ -123,6 +124,42 @@ contract ERC721GeneralSequence is MetadataEncryption, ERC721GeneralSequenceBase 
             useMarketplaceFiltererRegistry,
             _observability
         );
+    }
+
+    /**
+     * @notice Used for meta-transactions
+     */
+    function _msgSender()
+        internal
+        view
+        virtual
+        override(ERC721GeneralSequenceBase, ContextUpgradeable)
+        returns (address sender)
+    {
+        return ERC721GeneralSequenceBase._msgSender();
+    }
+
+    /**
+     * @notice Used for meta-transactions
+     */
+    function _msgData()
+        internal
+        view
+        virtual
+        override(ERC721GeneralSequenceBase, ContextUpgradeable)
+        returns (bytes calldata)
+    {
+        return ERC721GeneralSequenceBase._msgData();
+    }
+
+    /**
+     * @dev For more efficient reverts.
+     */
+    function _revert(bytes4 errorSelector) internal pure override(ERC721GeneralSequenceBase, OnchainFileStorage) {
+        assembly {
+            mstore(0x00, errorSelector)
+            revert(0x00, 0x04)
+        }
     }
 
     /**

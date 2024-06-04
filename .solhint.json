@@ -20,6 +20,7 @@
     "avoid-throw": "off",
     "avoid-suicide": "error",
     "avoid-sha3": "warn",
-    "no-global-import": "off"
+    "no-global-import": "off",
+    "quotes": "warn"
   }
 }

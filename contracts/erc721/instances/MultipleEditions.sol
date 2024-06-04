@@ -47,7 +47,7 @@ contract MultipleEditions is Proxy {
      * @ param tokenLimitPerTx
      * @ param maxTotalClaimableViaVector
      * @ param maxUserClaimableViaVector
-     * @ param allowlistRoot
+     * @ param currency
      * @param mechanicVectorData Mechanic mint vector data
      * @ param mechanicVectorId Global mechanic vector ID
      * @ param mechanic Mechanic address

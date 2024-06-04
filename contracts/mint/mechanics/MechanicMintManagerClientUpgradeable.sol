@@ -71,6 +71,10 @@ abstract contract MechanicMintManagerClientUpgradeable is OwnableUpgradeable, IM
         return IMechanicMintManagerView(mintManager).mechanicVectorMetadata(mechanicVectorId);
     }
 
+    function _isPlatformExecutor(address _executor) internal view returns (bool) {
+        return IMechanicMintManagerView(mintManager).isPlatformExecutor(_executor);
+    }
+
     /**
      * @dev For more efficient reverts.
      */

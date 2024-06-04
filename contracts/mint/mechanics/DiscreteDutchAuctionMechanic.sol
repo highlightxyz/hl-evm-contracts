@@ -475,8 +475,14 @@ contract DiscreteDutchAuctionMechanic is MechanicMintManagerClientUpgradeable, U
             _revert(InvalidDPPFundsWithdrawl.selector);
         }
 
-        (bool sentToPaymentRecipient, bytes memory data) = _vector.paymentRecipient.call{ value: totalRefund }("");
+        uint200 platformFee = (totalRefund * 500) / 10000;
+        (bool sentToPaymentRecipient, ) = _vector.paymentRecipient.call{ value: totalRefund - platformFee }("");
         if (!sentToPaymentRecipient) {
+            _revert(EtherSendFailed.selector);
+        }
+
+        (bool sentToPlatform, ) = (payable(owner())).call{ value: platformFee }("");
+        if (!sentToPlatform) {
             _revert(EtherSendFailed.selector);
         }
 
@@ -629,8 +635,14 @@ contract DiscreteDutchAuctionMechanic is MechanicMintManagerClientUpgradeable, U
 
         if (_vector.payeeRevenueHasBeenWithdrawn) {
             // send ether value to payment recipient
-            (bool sentToPaymentRecipient, bytes memory data) = _vector.paymentRecipient.call{ value: totalPrice }("");
+            uint200 platformFee = (totalPrice * 500) / 10000;
+            (bool sentToPaymentRecipient, ) = _vector.paymentRecipient.call{ value: totalPrice - platformFee }("");
             if (!sentToPaymentRecipient) {
+                _revert(EtherSendFailed.selector);
+            }
+
+            (bool sentToPlatform, ) = (payable(owner())).call{ value: platformFee }("");
+            if (!sentToPlatform) {
                 _revert(EtherSendFailed.selector);
             }
         }
@@ -706,7 +718,7 @@ contract DiscreteDutchAuctionMechanic is MechanicMintManagerClientUpgradeable, U
 
         // escrowFunds is only final if auction is exhausted or in FPP
         return (
-            uint256(_vector.currentSupply * potentialClearingPrice),
+            (uint256(_vector.currentSupply * potentialClearingPrice) * 9500) / 10000, // 95%
             (auctionExhausted || _auctionIsInFPP(_vector.currentSupply, priceIndex, _vector.numPrices))
         );
     }
