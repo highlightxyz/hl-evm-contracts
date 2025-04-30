@@ -1,6 +1,6 @@
 # hl-evm-contracts
 
-Highlight v1 Protocol. Protocol documentation incoming.
+Highlight v1 Protocol.
 
 ### Private keys
 
