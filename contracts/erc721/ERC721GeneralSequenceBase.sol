@@ -38,11 +38,6 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
     error MismatchedArrayLengths();
 
     /**
-     * @notice Throw when string is empty
-     */
-    error EmptyString();
-
-    /**
      * @notice Custom renderer config, used for collections where metadata is rendered "in-chain"
      * @param renderer Renderer address
      * @param processMintDataOnRenderer If true, process mint data on renderer
@@ -84,10 +79,6 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
      * @notice See {IERC721GeneralMint-mintOneToOneRecipient}
      */
     function mintOneToOneRecipient(address recipient) external virtual onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
-
         uint256 tempSupply = _nextTokenId();
         _requireLimitSupply(tempSupply);
 
@@ -106,9 +97,6 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
      * @notice See {IERC721GeneralMint-mintAmountToOneRecipient}
      */
     function mintAmountToOneRecipient(address recipient, uint256 amount) external virtual onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         uint256 tempSupply = _nextTokenId() - 1; // cache
 
         _mint(recipient, amount);
@@ -126,9 +114,6 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
      * @notice See {IERC721GeneralMint-mintOneToMultipleRecipients}
      */
     function mintOneToMultipleRecipients(address[] calldata recipients) external onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         uint256 recipientsLength = recipients.length;
         uint256 tempSupply = _nextTokenId() - 1; // cache
 
@@ -152,9 +137,6 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
         address[] calldata recipients,
         uint256 amount
     ) external onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         uint256 recipientsLength = recipients.length;
         uint256 tempSupply = _nextTokenId() - 1; // cache
 
@@ -208,10 +190,6 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
      * @param newBaseURI New base uri to set
      */
     function setBaseURI(string calldata newBaseURI) external nonReentrant {
-        if (bytes(newBaseURI).length == 0) {
-            _revert(EmptyString.selector);
-        }
-
         address _manager = defaultManager;
 
         if (_manager == address(0)) {
@@ -314,7 +292,11 @@ abstract contract ERC721GeneralSequenceBase is ERC721Base, ERC721AURIStorageUpgr
      */
     function _afterTokenTransfers(address from, address to, uint256 tokenId) internal override {
         address _manager = tokenManager(tokenId);
-        if (_manager != address(0) && IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)) {
+        if (
+            from != address(0) &&
+            _manager != address(0) &&
+            IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)
+        ) {
             IPostTransfer(_manager).postSafeTransferFrom(_msgSender(), from, to, tokenId, "");
         }
 

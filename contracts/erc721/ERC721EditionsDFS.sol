@@ -29,8 +29,7 @@ contract ERC721EditionsDFS is
     IERC721EditionsDFS,
     IERC721EditionMint,
     ERC721Base,
-    ERC721Upgradeable,
-    MarketplaceFiltererAbridged
+    ERC721Upgradeable
 {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -104,8 +103,8 @@ contract ERC721EditionsDFS is
 
     /**
      * @notice Initialize the contract
+     * @param creator Creator/owner of contract
      * @param data Contract initialization data
-     * @ param creator Creator/owner of contract
      * @ param _contractURI Contract metadata
      * @ param _name Name of token edition
      * @ param _symbol Symbol of the token edition
@@ -114,9 +113,8 @@ contract ERC721EditionsDFS is
      * @ param useMarketplaceFiltererRegistry Denotes whether to use marketplace filterer registry
      * @ param _observability Observability contract address
      */
-    function initialize(bytes calldata data) external initializer {
+    function initialize(address creator, bytes memory data) external initializer {
         (
-            address creator,
             string memory _contractURI,
             string memory _name,
             string memory _symbol,
@@ -124,7 +122,7 @@ contract ERC721EditionsDFS is
             address[] memory initialMinters,
             bool useMarketplaceFiltererRegistry,
             address _observability
-        ) = abi.decode(data, (address, string, string, string, address, address[], bool, address));
+        ) = abi.decode(data, (string, string, string, address, address[], bool, address));
 
         IRoyaltyManager.Royalty memory _defaultRoyalty = IRoyaltyManager.Royalty(address(0), 0);
         _initialize(
@@ -242,6 +240,84 @@ contract ERC721EditionsDFS is
     }
 
     /**
+     * @notice Used to create a new Edition within the Collection
+     * @param _editionUri Edition uri (metadata)
+     * @param _editionSize Size of the Edition
+     * @param _editionTokenManager Edition's token manager
+     * @param editionRoyalty Edition royalty object for contract (optional)
+     * @param mintVectorData Direct mint vector data
+     * @param mechanicVectorData Mechanic mint vector data
+     * @ param mechanicVectorId Global mechanic vector ID
+     * @ param mechanic Mechanic address
+     * @ param mintManager Mint manager address
+     * @ param vectorData Vector data
+     */
+    function createEditionWithMechanicVectorAndPublicFixedPriceVector(
+        string memory _editionUri,
+        uint256 _editionSize,
+        address _editionTokenManager,
+        IRoyaltyManager.Royalty memory editionRoyalty,
+        bytes calldata mintVectorData,
+        bytes calldata mechanicVectorData
+    ) external onlyOwner nonReentrant returns (uint256) {
+        uint256 editionId = _createEdition(_editionUri, _editionSize, _editionTokenManager);
+        if (editionRoyalty.recipientAddress != address(0)) {
+            _royalties[editionId] = editionRoyalty;
+        }
+
+        if (mintVectorData.length > 0) {
+            (
+                address mintManager,
+                address paymentRecipient,
+                uint48 startTimestamp,
+                uint48 endTimestamp,
+                uint192 pricePerToken,
+                uint48 tokenLimitPerTx,
+                uint48 maxTotalClaimableViaVector,
+                uint48 maxUserClaimableViaVector,
+                address currency
+            ) = abi.decode(
+                    mintVectorData,
+                    (address, address, uint48, uint48, uint192, uint48, uint48, uint48, address)
+                );
+
+            IAbridgedMintVector(mintManager).createAbridgedVector(
+                IAbridgedMintVector.AbridgedVectorData(
+                    uint160(address(this)),
+                    startTimestamp,
+                    endTimestamp,
+                    uint160(paymentRecipient),
+                    maxTotalClaimableViaVector,
+                    0,
+                    uint160(currency),
+                    tokenLimitPerTx,
+                    maxUserClaimableViaVector,
+                    pricePerToken,
+                    uint48(editionId), // cast down
+                    true,
+                    false,
+                    0
+                )
+            );
+        }
+
+        if (mechanicVectorData.length > 0) {
+            (uint96 seed, address mechanic, address mintManager, bytes memory vectorData) = abi.decode(
+                mechanicVectorData,
+                (uint96, address, address, bytes)
+            );
+
+            IMechanicMintManager(mintManager).registerMechanicVector(
+                IMechanicData.MechanicVectorMetadata(address(this), uint96(editionId), mechanic, true, false, false),
+                seed,
+                vectorData
+            );
+        }
+
+        return editionId;
+    }
+
+    /**
      * @notice Create edition with auction
      * @param _editionUri Edition uri (metadata)
      * @param auctionData Auction data
@@ -291,9 +367,6 @@ contract ERC721EditionsDFS is
         uint256 editionId,
         address recipient
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -309,9 +382,6 @@ contract ERC721EditionsDFS is
         address recipient,
         uint256 amount
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -326,9 +396,6 @@ contract ERC721EditionsDFS is
         uint256 editionId,
         address[] memory recipients
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -344,9 +411,6 @@ contract ERC721EditionsDFS is
         address[] memory recipients,
         uint256 amount
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -456,22 +520,6 @@ contract ERC721EditionsDFS is
     }
 
     /**
-     * @notice See {IERC721-setApprovalForAll}.
-     *         Overrides default behaviour to check MarketplaceFilterer allowed operators.
-     */
-    function setApprovalForAll(address operator, bool approved) public override onlyAllowedOperatorApproval(operator) {
-        super.setApprovalForAll(operator, approved);
-    }
-
-    /**
-     * @notice See {IERC721-approve}.
-     *         Overrides default behaviour to check MarketplaceFilterer allowed operators.
-     */
-    function approve(address operator, uint256 tokenId) public override onlyAllowedOperatorApproval(operator) {
-        super.approve(operator, tokenId);
-    }
-
-    /**
      * @notice See {IERC721-burn}. Overrides default behaviour to check associated tokenManager.
      */
     function burn(uint256 tokenId) public nonReentrant {
@@ -526,7 +574,6 @@ contract ERC721EditionsDFS is
     /**
      * @notice Get URI for given edition id
      * @param editionId edition id to get uri for
-     * @return base64-encoded json metadata object
      */
     function editionURI(uint256 editionId) public view returns (string memory) {
         if (!_editionExists(editionId)) {
@@ -538,7 +585,6 @@ contract ERC721EditionsDFS is
     /**
      * @notice Get URI for given token id
      * @param tokenId token id to get uri for
-     * @return base64-encoded json metadata object
      */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         if (!_exists(tokenId)) {
@@ -621,16 +667,28 @@ contract ERC721EditionsDFS is
      */
     function _afterTokenTransfers(address from, address to, uint256 tokenId) internal override {
         address msgSender = _msgSender();
-        if (from != msgSender) {
-            _checkFilterOperator(msgSender);
-        }
 
         address _manager = tokenManagerByTokenId(tokenId);
-        if (_manager != address(0) && IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)) {
+        if (
+            from != address(0) &&
+            _manager != address(0) &&
+            IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)
+        ) {
             IPostTransfer(_manager).postTransferFrom(msgSender, from, to, tokenId);
         }
 
         observability.emitTransfer(from, to, tokenId);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Internal function without access restriction.
+     */
+    function _transferOwnership(address newOwner) internal override {
+        if (address(observability) != address(0)) {
+            observability.emitOwnershipTransferred(owner(), newOwner);
+        }
+        super._transferOwnership(newOwner);
     }
 
     /**
@@ -673,9 +731,7 @@ contract ERC721EditionsDFS is
     /**
      * @dev For more efficient reverts.
      */
-    function _revert(
-        bytes4 errorSelector
-    ) internal pure override(ERC721Upgradeable, ERC721Base, MarketplaceFiltererAbridged) {
+    function _revert(bytes4 errorSelector) internal pure override(ERC721Upgradeable, ERC721Base) {
         ERC721Upgradeable._revert(errorSelector);
     }
 
@@ -715,8 +771,8 @@ contract ERC721EditionsDFS is
         }
         nextTokenId = 1;
         contractURI = _contractURI;
-        IObservability(_observability).emitMultipleEditionsDeployed(address(this));
-        observability = IObservability(_observability);
+        IObservabilityV3(_observability).emitMultipleEditionsDeployed(address(this));
+        observability = IObservabilityV3(_observability);
     }
 
     /**

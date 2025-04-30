@@ -471,7 +471,7 @@ contract AuctionManager is
         bytes32 auctionId,
         uint256 newEndTime
     ) external onlyAuctionOwner(auctionId) auctionIsLiveOnChain(auctionId) {
-        require(_highestBidders[auctionId].bidder == address(0), "Can't update after first valid bid");
+        // require(_highestBidders[auctionId].bidder == address(0), "Can't update after first valid bid");
         _auctions[auctionId].endTime = newEndTime;
 
         emit EndTimeUpdated(auctionId, _auctions[auctionId].owner, newEndTime);

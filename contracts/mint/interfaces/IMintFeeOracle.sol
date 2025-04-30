@@ -15,6 +15,7 @@ interface IMintFeeOracle {
      * @param currency Mint fee currency currency
      * @param amount Sale amount
      * @param minter Minter address
+     * @param is1155 If collection contract is an 1155
      */
     function processClassicVectorMintFeeCap(
         bytes32 vectorId,
@@ -22,7 +23,8 @@ interface IMintFeeOracle {
         address vectorPaymentRecipient,
         address currency,
         uint256 amount,
-        address minter
+        address minter,
+        bool is1155
     ) external payable returns (uint256);
 
     /**
@@ -31,13 +33,15 @@ interface IMintFeeOracle {
      * @param numToMint Number of tokens to mint in this transaction
      * @param minter Minter address
      * @param currency Sale currency
+     * @param collectionContract Collection NFT contract
      */
     function getClassicVectorMintFeeCap(
         bytes32 vectorId,
         uint256 numToMint,
         address minter,
-        address currency
-    ) external view returns (uint256);
+        address currency,
+        address collectionContract
+    ) external view returns (uint256, bool);
 
     /**
      * @notice Get the mint fee for a mechanic mint mv
@@ -45,11 +49,13 @@ interface IMintFeeOracle {
      * @param numToMint Number of tokens to mint in this transaction
      * @param mechanic Address of mechanic facilitating mint
      * @param minter Address minting
+     * @param collectionContract Collection NFT contract
      */
     function getMechanicMintFee(
         bytes32 vectorId,
         uint32 numToMint,
         address mechanic,
-        address minter
+        address minter,
+        address collectionContract
     ) external view returns (uint256);
 }

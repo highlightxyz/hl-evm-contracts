@@ -6,9 +6,12 @@ import "../../erc721/interfaces/IEditionCollection.sol";
 import "../../erc721/interfaces/IERC721GeneralSupplyMetadata.sol";
 import "../../observability/IGengineObservability.sol";
 import "./interfaces/IManifold1155Burn.sol";
+import "./interfaces/IZora1155Burn.sol";
+import "./interfaces/ISeedProcessor.sol";
 
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /**
  * @notice Highlight's bespoke Seed based mint mechanic
@@ -46,6 +49,16 @@ contract SeedBasedMintMechanic is MechanicMintManagerClientUpgradeable, UUPSUpgr
      * @notice Throw when an internal transfer of ether fails
      */
     error EtherSendFailed();
+
+    /**
+     * @notice Throw when signature is invalid
+     */
+    error InvalidSignature();
+
+    /**
+     * @notice Throw when burn id is used
+     */
+    error UsedBurnId();
 
     /**
      * @notice On-chain mint vector (stored data)
@@ -95,6 +108,14 @@ contract SeedBasedMintMechanic is MechanicMintManagerClientUpgradeable, UUPSUpgr
     }
 
     /**
+     * @notice Pricing config
+     */
+    struct Pricing {
+        address paymentRecipient;
+        uint96 pricePerToken;
+    }
+
+    /**
      * @notice IGengineObservability contract
      */
     IGengineObservability public observability;
@@ -118,6 +139,26 @@ contract SeedBasedMintMechanic is MechanicMintManagerClientUpgradeable, UUPSUpgr
      * @notice System-wide vector ids to burn/redeem configuration
      */
     mapping(bytes32 => BurnRedeem1155Config) private _burnRedeem1155Config;
+
+    /**
+     * @notice System-wide vector ids to used burn ids in crosschain burn/redeem
+     */
+    mapping(bytes32 => EnumerableSet.Bytes32Set) private _usedBurnIds;
+
+    /**
+     * @notice System-wide vector ids to pricing config
+     */
+    mapping(bytes32 => Pricing) private _pricing;
+
+    /**
+     * @notice NFT contract addresses to additional seed processor contracts
+     */
+    mapping(address => address) private _seedProcessor;
+
+    /**
+     * @notice System-wide vector ids to number of tokens redeemed
+     */
+    mapping(bytes32 => uint256) public numCrosschainRedeemedTokens;
 
     /**
      * @notice Emitted when a mint vector is created
@@ -161,6 +202,17 @@ contract SeedBasedMintMechanic is MechanicMintManagerClientUpgradeable, UUPSUpgr
         uint32 percentageBPSOfTotal
     );
 
+    event CrosschainBurn(
+        bytes32 indexed mechanicVectorId,
+        bytes32 indexed burnId,
+        address indexed burner,
+        uint256 currentGasCost,
+        uint48 signatureExpiryTime,
+        uint40 numToMint,
+        uint256 destinationChainId,
+        bytes seed
+    );
+
     /**
      * @notice Initialize mechanic contract
      * @param _mintManager Mint manager address
@@ -169,6 +221,16 @@ contract SeedBasedMintMechanic is MechanicMintManagerClientUpgradeable, UUPSUpgr
     function initialize(address _mintManager, address platform, address _observability) external initializer {
         __MechanicMintManagerClientUpgradeable_initialize(_mintManager, platform);
         observability = IGengineObservability(_observability);
+    }
+
+    /**
+     * @notice Set a seed processor contract for an nft contract
+     */
+    function setSeedProcessor(address nftContract, address seedProcessor) external {
+        if (OwnableUpgradeable(nftContract).owner() != msg.sender) {
+            _revert(Unauthorized.selector);
+        }
+        _seedProcessor[nftContract] = seedProcessor;
     }
 
     /**
@@ -285,7 +347,35 @@ contract SeedBasedMintMechanic is MechanicMintManagerClientUpgradeable, UUPSUpgr
         MechanicVectorMetadata calldata mechanicVectorMetadata,
         bytes calldata data
     ) external payable onlyMintManager {
-        _processMint(mechanicVectorId, recipient, numToMint, data);
+        if (mechanicVectorMetadata.contractAddress == address(0)) {
+            revert("Vector doesn't exist");
+        }
+        address seedProcessor = _seedProcessor[mechanicVectorMetadata.contractAddress];
+
+        // Process on custom seed processor
+        if (seedProcessor != address(0)) {
+            SeedBasedVector memory _vector = vector[mechanicVectorId];
+
+            if (
+                block.timestamp < _vector.startTimestamp ||
+                (block.timestamp > _vector.endTimestamp && _vector.endTimestamp != 0)
+            ) {
+                revert("Invalid mint time");
+            }
+
+            ISeedProcessor(seedProcessor).processSeed{ value: msg.value }(
+                mechanicVectorId,
+                mechanicVectorMetadata.contractAddress,
+                recipient,
+                numToMint,
+                minter,
+                _vector.paymentRecipient,
+                data
+            );
+            return;
+        }
+
+        _processMint(mechanicVectorId, recipient, numToMint, data, mechanicVectorMetadata);
 
         BurnRedeem1155Config memory burnRedeemConfig = _burnRedeem1155Config[mechanicVectorId];
         if (burnRedeemConfig.burnContract != address(0)) {
@@ -306,6 +396,64 @@ contract SeedBasedMintMechanic is MechanicMintManagerClientUpgradeable, UUPSUpgr
     ) external payable onlyMintManager {
         // currently we don't support "choose token to mint" functionality for seed based mints
         _revert(InvalidMint.selector);
+    }
+
+    /**
+     * @notice Create crosschain burn/redeem mint vector
+     */
+    function createCrosschainBurnRedeemVector(
+        bytes32 mechanicVectorId,
+        address burnContract,
+        uint88 tokenId,
+        address paymentRecipient,
+        uint96 pricePerToken
+    ) external onlyOwner {
+        _burnRedeem1155Config[mechanicVectorId] = BurnRedeem1155Config(burnContract, tokenId, 0);
+        _pricing[mechanicVectorId] = Pricing(paymentRecipient, pricePerToken);
+    }
+
+    /**
+     * @notice Burn tokens for crosschain burn/redeem mint
+     */
+    function burnCrosschain(
+        bytes32 mechanicVectorId,
+        bytes32 burnId,
+        uint256 currentGasCost,
+        bytes calldata seed,
+        uint48 signatureExpiryTime,
+        address burner,
+        uint256 destinationChainId,
+        bytes calldata signature
+    ) external payable {
+        if (
+            seed.length == 0 || block.timestamp > signatureExpiryTime || burner != msg.sender || msg.sender != tx.origin
+        ) {
+            _revert(InvalidMint.selector);
+        }
+
+        _validateCrosschainBurnSignature(
+            mechanicVectorId,
+            burnId,
+            currentGasCost,
+            signatureExpiryTime,
+            seed,
+            destinationChainId,
+            signature
+        );
+
+        uint40 numToMint = _burnCrosschainTokens(mechanicVectorId, seed);
+        _processCrosschainBurnPayments(mechanicVectorId, uint256(numToMint), currentGasCost);
+
+        emit CrosschainBurn(
+            mechanicVectorId,
+            burnId,
+            burner,
+            currentGasCost,
+            signatureExpiryTime,
+            numToMint,
+            destinationChainId,
+            seed
+        );
     }
 
     /**
@@ -350,12 +498,15 @@ contract SeedBasedMintMechanic is MechanicMintManagerClientUpgradeable, UUPSUpgr
      * @param recipient Mint recipient
      * @param numToMint Number of tokens to mint
      */
-    function _processMint(bytes32 mechanicVectorId, address recipient, uint32 numToMint, bytes calldata data) private {
-        MechanicVectorMetadata memory metadata = _getMechanicVectorMetadata(mechanicVectorId);
-        if (metadata.contractAddress == address(0)) {
-            revert("Vector doesn't exist");
-        }
+    function _processMint(
+        bytes32 mechanicVectorId,
+        address recipient,
+        uint32 numToMint,
+        bytes calldata data,
+        MechanicVectorMetadata memory metadata
+    ) private {
         SeedBasedVector memory _vector = vector[mechanicVectorId];
+
         uint48 newNumClaimedForUser = uint48(userClaims[mechanicVectorId][recipient]) + numToMint;
         bytes32 seedData = keccak256(data);
         uint256 newSeedCount = seedInfo[mechanicVectorId][seedData] + 1;
@@ -448,4 +599,154 @@ contract SeedBasedMintMechanic is MechanicMintManagerClientUpgradeable, UUPSUpgr
 
         IManifold1155Burn(burnRedeemConfig.burnContract).burn(minter, tokenIds, amounts);
     }
+
+    /**
+     * @notice Process crosschain burn/redeem payments
+     */
+    function _processCrosschainBurnPayments(
+        bytes32 mechanicVectorId,
+        uint256 numToMint,
+        uint256 currentGasCost
+    ) private {
+        Pricing memory priceConfig = _pricing[mechanicVectorId];
+        if (priceConfig.paymentRecipient == address(0)) {
+            _revert(InvalidMint.selector);
+        }
+
+        uint256 mintFee = 800000000000000;
+        if (mechanicVectorId == 0x7fcf14535879c639322786a3742946d9c754cabcb4ec38647ab61a56f711774f) {
+            mintFee = 400000000000000;
+        }
+        uint256 mintFeeTotal = numToMint * mintFee;
+        uint256 priceTotal = numToMint * priceConfig.pricePerToken;
+
+        if (mintFeeTotal + priceTotal + currentGasCost != msg.value) {
+            _revert(InvalidPaymentAmount.selector);
+        }
+
+        (bool sentToPlatform, ) = payable(owner()).call{ value: currentGasCost + mintFeeTotal }("");
+        if (!sentToPlatform) {
+            _revert(EtherSendFailed.selector);
+        }
+
+        if (priceTotal > 0) {
+            (bool sentToRecipient, ) = payable(priceConfig.paymentRecipient).call{ value: priceTotal }("");
+            if (!sentToRecipient) {
+                _revert(EtherSendFailed.selector);
+            }
+        }
+    }
+
+    /**
+     * @notice Validate crosschain burn/redeem signature
+     */
+    function _validateCrosschainBurnSignature(
+        bytes32 mechanicVectorId,
+        bytes32 burnId,
+        uint256 currentGasCost,
+        uint48 signatureExpiryTime,
+        bytes memory seed,
+        uint256 destinationChainId,
+        bytes memory signature
+    ) private {
+        // validate signature
+        bytes32 crosschainBurnId = keccak256(
+            abi.encode(
+                _crosschainBurnTypehash(),
+                mechanicVectorId,
+                burnId,
+                msg.sender,
+                currentGasCost,
+                signatureExpiryTime,
+                destinationChainId,
+                keccak256(seed)
+            )
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _getDomainSeperator(), crosschainBurnId));
+
+        _validateCrosschainBurnSignatureInner(digest, mechanicVectorId, burnId, signature);
+    }
+
+    /**
+     * @notice Validate crosschain burn/redeem signature inner
+     */
+    function _validateCrosschainBurnSignatureInner(
+        bytes32 digest,
+        bytes32 mechanicVectorId,
+        bytes32 burnId,
+        bytes memory signature
+    ) private {
+        address signer = ECDSA.recover(digest, signature);
+        if (signer == address(0) || !_isPlatformExecutor(signer)) {
+            _revert(InvalidSignature.selector);
+        }
+
+        if (!_usedBurnIds[mechanicVectorId].add(burnId)) {
+            // burn id already used
+            _revert(UsedBurnId.selector);
+        }
+    }
+
+    /**
+     * @notice Burn crosschain burn/redeem tokens
+     */
+    function _burnCrosschainTokens(bytes32 mechanicVectorId, bytes calldata seed) private returns (uint40) {
+        BurnRedeem1155Config memory _burnConfig = _burnRedeem1155Config[mechanicVectorId];
+        if (_burnConfig.burnContract == address(0)) {
+            _revert(InvalidMint.selector);
+        }
+        uint256 highestBurnPrice = abi.decode(seed, (uint256));
+        uint256 burnPrice = numCrosschainRedeemedTokens[mechanicVectorId] + 1;
+        require(
+            burnPrice <= highestBurnPrice,
+            "Slippage exceeded, current burn price higher than highest allowable starting burn price"
+        );
+
+        // burn required tokens
+        uint256[] memory tokenIds = new uint256[](1);
+        uint256[] memory burnAmounts = new uint256[](1);
+        tokenIds[0] = uint256(_burnConfig.tokenId);
+        burnAmounts[0] = burnPrice;
+
+        IZora1155Burn(_burnConfig.burnContract).burnBatch(msg.sender, tokenIds, burnAmounts);
+        numCrosschainRedeemedTokens[mechanicVectorId] = burnPrice;
+
+        return uint40(1);
+    }
+
+    /**
+     * @notice Return EIP712 domain seperator
+     */
+    function _getDomainSeperator() private view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    _domainTypehash(),
+                    keccak256("SeedBasedMintMechanic"),
+                    keccak256("1"),
+                    block.chainid,
+                    address(this),
+                    0x4e5f43db88d0a2d2e6314edc3db06b85283dda4de0e21b22a5492c209ebd0d15 // seed based mechanic salt
+                )
+            );
+    }
+
+    /* solhint-disable max-line-length */
+    /**
+     * @notice Constants that help with EIP-712, signature based minting
+     */
+    function _domainTypehash() private view returns (bytes32) {
+        return
+            keccak256(
+                "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)"
+            );
+    }
+
+    function _crosschainBurnTypehash() private view returns (bytes32) {
+        return
+            keccak256(
+                "CrosschainBurn(bytes32 mechanicVectorId,bytes32 burnId,address burner,uint256 currentGasCost,uint48 signatureExpiryTime,uint256 destinationChainId,bytes seed)"
+            );
+    }
+    /* solhint-enable max-line-length */
 }

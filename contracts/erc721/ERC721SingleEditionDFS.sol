@@ -82,8 +82,8 @@ contract ERC721SingleEditionDFS is
 
     /**
      * @notice Initializes the contract
+     * @param creator Creator/owner of contract
      * @param data Data to initialize contract, in current format:
-     * @ param creator Creator/owner of contract
      * @ param defaultRoyalty Default royalty object for contract (optional)
      * @ param _defaultTokenManager Default token manager for contract (optional)
      * @ param _contractURI Contract metadata
@@ -96,9 +96,8 @@ contract ERC721SingleEditionDFS is
      * @ param _editionUri Edition uri
      * @param _observability Observability contract address
      */
-    function initialize(bytes calldata data, address _observability) external initializer {
+    function initialize(address creator, bytes memory data, address _observability) external initializer {
         (
-            address creator,
             IRoyaltyManager.Royalty memory defaultRoyalty,
             address _defaultTokenManager,
             string memory _contractURI,
@@ -111,19 +110,7 @@ contract ERC721SingleEditionDFS is
             string memory _editionUri
         ) = abi.decode(
                 data,
-                (
-                    address,
-                    IRoyaltyManager.Royalty,
-                    address,
-                    string,
-                    string,
-                    string,
-                    uint256,
-                    address,
-                    address,
-                    bool,
-                    string
-                )
+                (IRoyaltyManager.Royalty, address, string, string, string, uint256, address, address, bool, string)
             );
 
         _initialize(
@@ -140,8 +127,8 @@ contract ERC721SingleEditionDFS is
             useMarketplaceFiltererRegistry
         );
 
-        IObservability(_observability).emitSingleEditionDeployed(address(this));
-        observability = IObservability(_observability);
+        IObservabilityV3(_observability).emitSingleEditionDeployed(address(this));
+        observability = IObservabilityV3(_observability);
     }
 
     /**
@@ -151,9 +138,6 @@ contract ERC721SingleEditionDFS is
         uint256 editionId,
         address recipient
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -169,9 +153,6 @@ contract ERC721SingleEditionDFS is
         address recipient,
         uint256 amount
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -186,9 +167,6 @@ contract ERC721SingleEditionDFS is
         uint256 editionId,
         address[] memory recipients
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -203,9 +181,6 @@ contract ERC721SingleEditionDFS is
         address[] memory recipients,
         uint256 amount
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -335,7 +310,6 @@ contract ERC721SingleEditionDFS is
     /**
      * @notice Get URI for given edition id
      * @param editionId edition id to get uri for
-     * @return base64-encoded json metadata object
      */
     function editionURI(uint256 editionId) public view returns (string memory) {
         if (!_editionExists(editionId)) {
@@ -347,7 +321,6 @@ contract ERC721SingleEditionDFS is
     /**
      * @notice Get URI for given token id
      * @param tokenId token id to get uri for
-     * @return base64-encoded json metadata object
      */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         if (!_exists(tokenId)) {
@@ -451,6 +424,36 @@ contract ERC721SingleEditionDFS is
         _mint(recipient, _amount);
 
         return endAt;
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Internal function without access restriction.
+     */
+    function _transferOwnership(address newOwner) internal override {
+        if (address(observability) != address(0)) {
+            observability.emitOwnershipTransferred(owner(), newOwner);
+        }
+        super._transferOwnership(newOwner);
+    }
+
+    /**
+     * @notice Hook called after transfers
+     * @param from Account token is being transferred from
+     * @param to Account token is being transferred to
+     * @param tokenId ID of token being transferred
+     */
+    function _afterTokenTransfers(address from, address to, uint256 tokenId) internal override {
+        address _manager = tokenManager(tokenId);
+        if (
+            from != address(0) &&
+            _manager != address(0) &&
+            IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)
+        ) {
+            IPostTransfer(_manager).postSafeTransferFrom(_msgSender(), from, to, tokenId, "");
+        }
+
+        observability.emitTransfer(from, to, tokenId);
     }
 
     /**

@@ -29,21 +29,6 @@ abstract contract ERC721AURIStorageUpgradeable is Initializable, ERC721AUpgradea
     mapping(uint256 => string) internal _tokenURIs;
 
     /**
-     * @dev Hashed rotation key data
-     */
-    bytes internal _hashedRotationKeyData;
-
-    /**
-     * @dev Hashed base uri data
-     */
-    bytes internal _hashedBaseURIData;
-
-    /**
-     * @dev Rotation key
-     */
-    uint256 internal _rotationKey;
-
-    /**
      * @dev Contract baseURI
      */
     string public baseURI;

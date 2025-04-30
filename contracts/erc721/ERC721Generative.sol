@@ -78,8 +78,8 @@ contract ERC721Generative is ERC721GeneralSequenceBase {
         _minters.add(initialMinter);
         contractURI = _contractURI;
         _generativeCodeURI = _codeURI;
-        IObservability(_observability).emitGenerativeSeriesDeployed(address(this));
-        observability = IObservability(_observability);
+        IObservabilityV3(_observability).emitGenerativeSeriesDeployed(address(this));
+        observability = IObservabilityV3(_observability);
 
         if (bytes(newBaseURI).length > 0) {
             _setBaseURI(newBaseURI);

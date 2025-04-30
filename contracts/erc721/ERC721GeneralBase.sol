@@ -43,11 +43,6 @@ abstract contract ERC721GeneralBase is
     error MismatchedArrayLengths();
 
     /**
-     * @notice Throw when string is empty
-     */
-    error EmptyString();
-
-    /**
      * @notice Contract metadata
      */
     string public contractURI;
@@ -79,10 +74,6 @@ abstract contract ERC721GeneralBase is
      * @notice See {IERC721GeneralMint-mintOneToOneRecipient}
      */
     function mintOneToOneRecipient(address recipient) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
-
         uint256 tempSupply = supply;
         tempSupply++;
         _requireLimitSupply(tempSupply);
@@ -97,9 +88,6 @@ abstract contract ERC721GeneralBase is
      * @notice See {IERC721GeneralMint-mintAmountToOneRecipient}
      */
     function mintAmountToOneRecipient(address recipient, uint256 amount) external onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         uint256 tempSupply = supply; // cache
 
         for (uint256 i = 0; i < amount; i++) {
@@ -115,9 +103,6 @@ abstract contract ERC721GeneralBase is
      * @notice See {IERC721GeneralMint-mintOneToMultipleRecipients}
      */
     function mintOneToMultipleRecipients(address[] calldata recipients) external onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         uint256 recipientsLength = recipients.length;
         uint256 tempSupply = supply; // cache
 
@@ -137,9 +122,6 @@ abstract contract ERC721GeneralBase is
         address[] calldata recipients,
         uint256 amount
     ) external onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         uint256 recipientsLength = recipients.length;
         uint256 tempSupply = supply; // cache
 
@@ -158,10 +140,6 @@ abstract contract ERC721GeneralBase is
      * @notice See {IERC721GeneralMint-mintSpecificTokenToOneRecipient}
      */
     function mintSpecificTokenToOneRecipient(address recipient, uint256 tokenId) external onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
-
         uint256 tempSupply = supply;
         tempSupply++;
 
@@ -183,10 +161,6 @@ abstract contract ERC721GeneralBase is
         address recipient,
         uint256[] calldata tokenIds
     ) external onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
-
         uint256 tempSupply = supply;
 
         uint256 tokenIdsLength = tokenIds.length;
@@ -233,10 +207,6 @@ abstract contract ERC721GeneralBase is
      * @param newBaseURI New base uri to set
      */
     function setBaseURI(string calldata newBaseURI) external nonReentrant {
-        if (bytes(newBaseURI).length == 0) {
-            _revert(EmptyString.selector);
-        }
-
         address _manager = defaultManager;
 
         if (_manager == address(0)) {
@@ -353,12 +323,13 @@ abstract contract ERC721GeneralBase is
      */
     function _afterTokenTransfers(address from, address to, uint256 tokenId) internal override {
         address msgSender = _msgSender();
-        if (from != msgSender) {
-            _checkFilterOperator(msgSender);
-        }
 
         address _manager = tokenManager(tokenId);
-        if (_manager != address(0) && IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)) {
+        if (
+            from != address(0) &&
+            _manager != address(0) &&
+            IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)
+        ) {
             IPostTransfer(_manager).postSafeTransferFrom(msgSender, from, to, tokenId, "");
         }
 

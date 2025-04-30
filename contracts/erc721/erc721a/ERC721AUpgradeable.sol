@@ -739,6 +739,8 @@ contract ERC721AUpgradeable is Initializable, IERC721AUpgradeable, ContextUpgrad
                         tokenId // `tokenId`.
                     )
                 }
+
+                _afterTokenTransfers(address(0), to, tokenId);
                 // The `!=` check ensures that large values of `quantity`
                 // that overflows uint256 will make the loop run out of gas.
             } while (++tokenId != end);

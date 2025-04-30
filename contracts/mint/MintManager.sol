@@ -19,6 +19,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { GelatoRelayContext } from "@gelatonetwork/relay-context/contracts/GelatoRelayContext.sol";
 
 /**
  * @title MintManager
@@ -31,7 +32,8 @@ contract MintManager is
     OwnableUpgradeable,
     ERC2771ContextUpgradeable,
     IAbridgedMintVector,
-    IMechanicMintManager
+    IMechanicMintManager,
+    GelatoRelayContext
 {
     using ECDSA for bytes32;
     using EnumerableSet for EnumerableSet.Bytes32Set;
@@ -133,6 +135,11 @@ contract MintManager is
      * @notice Throw when a mechanic is paused
      */
     error MechanicPaused();
+
+    /**
+     * @notice Throw when the sender is not an authorized gasless relayer
+     */
+    error UnauthorizedGaslessRelayer();
 
     /**
      * @notice On-chain mint vector
@@ -765,37 +772,37 @@ contract MintManager is
             _revert(InvalidMechanic.selector);
         }
 
-        uint256 _platformFee = 0;
         // constant gasless mechanic address
         if (_mechanicVectorMetadata.mechanic == _gaslessMechanicAddress) {
-            uint256 fee;
-            address feeCollector;
-            assembly {
-                fee := calldataload(sub(calldatasize(), 32))
-                feeCollector := shr(96, calldataload(sub(calldatasize(), 72)))
-            }
-
-            data = abi.encode(fee, feeCollector, data);
+            IMechanic(_mechanicVectorMetadata.mechanic).processNumMint(
+                mechanicVectorId,
+                recipient,
+                numToMint,
+                msgSender,
+                _mechanicVectorMetadata,
+                data
+            );
         } else {
-            _platformFee = IMintFeeOracle(_mintFeeOracle).getMechanicMintFee(
+            uint256 _platformFee = IMintFeeOracle(_mintFeeOracle).getMechanicMintFee(
                 mechanicVectorId,
                 numToMint,
                 _mechanicVectorMetadata.mechanic,
-                msgSender
+                msgSender,
+                _mechanicVectorMetadata.contractAddress
             );
             if (msg.value < _platformFee) {
                 _revert(MintFeeTooLow.selector);
             }
-        }
 
-        IMechanic(_mechanicVectorMetadata.mechanic).processNumMint{ value: msg.value - _platformFee }(
-            mechanicVectorId,
-            recipient,
-            numToMint,
-            msgSender,
-            _mechanicVectorMetadata,
-            data
-        );
+            IMechanic(_mechanicVectorMetadata.mechanic).processNumMint{ value: msg.value - _platformFee }(
+                mechanicVectorId,
+                recipient,
+                numToMint,
+                msgSender,
+                _mechanicVectorMetadata,
+                data
+            );
+        }
 
         if (_mechanicVectorMetadata.isEditionBased) {
             if (numToMint == 1) {
@@ -843,25 +850,39 @@ contract MintManager is
             _revert(InvalidMechanic.selector);
         }
         uint32 numToMint = uint32(tokenIds.length);
-        uint256 _platformFee = IMintFeeOracle(_mintFeeOracle).getMechanicMintFee(
-            mechanicVectorId,
-            numToMint,
-            _mechanicVectorMetadata.mechanic,
-            msgSender
-        );
-        if (msg.value < _platformFee) {
-            _revert(MintFeeTooLow.selector);
-        }
 
-        // send value without amount needed for mint fee
-        IMechanic(_mechanicVectorMetadata.mechanic).processChooseMint{ value: msg.value - _platformFee }(
-            mechanicVectorId,
-            recipient,
-            tokenIds,
-            msgSender,
-            _mechanicVectorMetadata,
-            data
-        );
+        // constant gasless mechanic address
+        if (_mechanicVectorMetadata.mechanic == _gaslessMechanicAddress) {
+            IMechanic(_mechanicVectorMetadata.mechanic).processChooseMint(
+                mechanicVectorId,
+                recipient,
+                tokenIds,
+                msgSender,
+                _mechanicVectorMetadata,
+                data
+            );
+        } else {
+            uint256 _platformFee = IMintFeeOracle(_mintFeeOracle).getMechanicMintFee(
+                mechanicVectorId,
+                numToMint,
+                _mechanicVectorMetadata.mechanic,
+                msgSender,
+                _mechanicVectorMetadata.contractAddress
+            );
+            if (msg.value < _platformFee) {
+                _revert(MintFeeTooLow.selector);
+            }
+
+            // send value without amount needed for mint fee
+            IMechanic(_mechanicVectorMetadata.mechanic).processChooseMint{ value: msg.value - _platformFee }(
+                mechanicVectorId,
+                recipient,
+                tokenIds,
+                msgSender,
+                _mechanicVectorMetadata,
+                data
+            );
+        }
 
         if (numToMint == 1) {
             IERC721GeneralMint(_mechanicVectorMetadata.contractAddress).mintSpecificTokenToOneRecipient(
@@ -907,14 +928,6 @@ contract MintManager is
         }
 
         if (Ownable(collection).owner() == msgSender || msgSender == collection) {
-            // platform mint fee deprecated for creator reserves mints
-            /*
-            uint256 mintFeeAmount = _platformMintFee * numToMint;
-            if (mintFeeAmount > msg.value) {
-                _revert(InvalidPaymentAmount.selector);
-            }
-            */
-
             if (isEditionBased) {
                 if (numToMint == 1) {
                     IERC721EditionMint(collection).mintOneToRecipient(editionId, recipient);
@@ -976,7 +989,8 @@ contract MintManager is
             msgSender,
             claim.currency,
             claim.pricePerToken,
-            claim.paymentRecipient
+            claim.paymentRecipient,
+            claim.contractAddress
         );
         emit ChooseTokenMint(claim.offchainVectorId, claim.contractAddress, false, tokenIds);
 
@@ -1013,7 +1027,8 @@ contract MintManager is
             msgSender,
             claim.currency,
             claim.pricePerToken,
-            claim.paymentRecipient
+            claim.paymentRecipient,
+            claim.contractAddress
         );
         emit NumTokenMint(claim.offchainVectorId, claim.contractAddress, false, claim.numTokensToMint);
 
@@ -1047,24 +1062,17 @@ contract MintManager is
      */
     function vectorMint721(uint256 vectorId, uint48 numTokensToMint, address mintRecipient) external payable {
         address msgSender = _msgSender();
-        address user = mintRecipient;
-        if (_useSenderForUserLimit(vectorId)) {
-            user = msgSender;
-        }
 
         AbridgedVectorData memory _vector = _abridgedVectors[vectorId];
         uint48 newNumClaimedViaVector = _vector.totalClaimedViaVector + numTokensToMint;
-        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][user]) + numTokensToMint;
+        uint48 newNumClaimedForUser = uint48(userClaims[vectorId][mintRecipient]) + numTokensToMint;
 
-        if (_vector.allowlistRoot != 0) {
-            _revert(AllowlistInvalid.selector);
-        }
         if (_vector.requireDirectEOA && msgSender != tx.origin) {
             _revert(SenderNotDirectEOA.selector);
         }
 
         _abridgedVectors[vectorId].totalClaimedViaVector = newNumClaimedViaVector;
-        userClaims[vectorId][user] = uint64(newNumClaimedForUser);
+        userClaims[vectorId][mintRecipient] = uint64(newNumClaimedForUser);
 
         if (_vector.editionBasedCollection) {
             _vectorMintEdition721(
@@ -1110,7 +1118,9 @@ contract MintManager is
         if (newPlatform == address(0)) {
             _revert(Unauthorized.selector);
         }
-        _platform = newPlatform;
+        if (_platform != newPlatform) {
+            _platform = newPlatform;
+        }
         if (_mintFeeOracle != newOracle) {
             _mintFeeOracle = newOracle;
         }
@@ -1219,14 +1229,14 @@ contract MintManager is
         override(ContextUpgradeable, ERC2771ContextUpgradeable)
         returns (address sender)
     {
-        return ERC2771ContextUpgradeable._msgSender();
+        return msg.sender; // temporary
     }
 
     /**
      * @notice Used for meta-transactions
      */
     function _msgData() internal view override(ContextUpgradeable, ERC2771ContextUpgradeable) returns (bytes calldata) {
-        return ERC2771ContextUpgradeable._msgData();
+        return msg.data; // temporary
     }
 
     /**
@@ -1335,7 +1345,8 @@ contract MintManager is
             msgSender,
             address(_vector.currency),
             _vector.pricePerToken,
-            payable(address(_vector.paymentRecipient))
+            payable(address(_vector.paymentRecipient)),
+            address(_vector.contractAddress)
         );
 
         emit NumTokenMint(bytes32(_vectorId), address(_vector.contractAddress), true, numTokensToMint);
@@ -1470,27 +1481,6 @@ contract MintManager is
         return _hashTypedDataV4(keccak256(_seriesClaimABIEncoded(claim))).recover(signature);
     }
 
-    /**
-     * @dev Understand whether to use the transaction sender or the nft recipient for per-user limits on onchain vectors
-     */
-    function _useSenderForUserLimit(uint256 mintVectorId) private view returns (bool) {
-        return false;
-        /*
-            ((block.chainid == 1 && mintVectorId < 19) ||
-            (block.chainid == 5 && mintVectorId < 188) ||
-            (block.chainid == 42161 && mintVectorId < 6) ||
-            (block.chainid == 421613 && mintVectorId < 3) ||
-            (block.chainid == 84531 && mintVectorId < 14) ||
-            (block.chainid == 8453 && mintVectorId < 60) ||
-            (block.chainid == 7777777 && mintVectorId < 20) ||
-            (block.chainid == 999 && mintVectorId < 10) ||
-            (block.chainid == 10 && mintVectorId < 11) ||
-            (block.chainid == 420 && mintVectorId < 3) ||
-            (block.chainid == 137 && mintVectorId < 7) ||
-            (block.chainid == 80001 && mintVectorId < 16));
-        */
-    }
-
     /* solhint-disable code-complexity */
     /**
      * @notice Process payments (sale + mint fee) for classic vectors (direct + gated)
@@ -1500,6 +1490,7 @@ contract MintManager is
      * @param currency Sale currency
      * @param salePrice Sale price
      * @param salePaymentRecipient Sale payment recipient
+     * @param collectionContract Collection NFT contract address
      */
     function _processClassicVectorPayments(
         bytes32 vectorId,
@@ -1507,17 +1498,48 @@ contract MintManager is
         address msgSender,
         address currency,
         uint256 salePrice,
-        address payable salePaymentRecipient
+        address payable salePaymentRecipient,
+        address collectionContract
     ) private {
-        address _oracle = _mintFeeOracle;
-        uint256 mintFeeCap = IMintFeeOracle(_oracle).getClassicVectorMintFeeCap(
+        (uint256 mintFeeCap, bool is1155) = IMintFeeOracle(_mintFeeOracle).getClassicVectorMintFeeCap(
             vectorId,
             numToMint,
             msgSender,
-            currency
+            currency,
+            collectionContract
         );
         uint256 mintFeeEtherValue = currency == address(0) ? mintFeeCap : 0;
         uint256 saleAmount = numToMint * salePrice;
+
+        _processClassicVectorPaymentsInner(vectorId, saleAmount, mintFeeEtherValue, currency, salePaymentRecipient);
+
+        _processClassicVectorMintFee(
+            mintFeeCap,
+            msgSender,
+            currency,
+            salePaymentRecipient,
+            vectorId,
+            mintFeeEtherValue,
+            salePrice == 0,
+            is1155
+        );
+    }
+
+    /**
+     * @notice Process payments (sale + mint fee) for classic vectors (direct + gated)
+     * @param vectorId Vector ID
+     * @param saleAmount Sale amount
+     * @param mintFeeEtherValue Mint fee in ether (if existent)
+     * @param currency Sale currency
+     * @param salePaymentRecipient Sale payment recipient
+     */
+    function _processClassicVectorPaymentsInner(
+        bytes32 vectorId,
+        uint256 saleAmount,
+        uint256 mintFeeEtherValue,
+        address currency,
+        address payable salePaymentRecipient
+    ) private returns (uint256, bool, uint256) {
         if (currency == address(0)) {
             if (mintFeeEtherValue + saleAmount != msg.value) {
                 _revert(InvalidPaymentAmount.selector);
@@ -1531,17 +1553,6 @@ contract MintManager is
             // tx.origin instead of msgSender for referrals
             _processERC20Payment(saleAmount, salePaymentRecipient, tx.origin, currency, vectorId);
         }
-
-        _processClassicVectorMintFee(
-            mintFeeCap,
-            msgSender,
-            currency,
-            _oracle,
-            salePaymentRecipient,
-            vectorId,
-            mintFeeEtherValue,
-            salePrice == 0
-        );
     }
 
     /**
@@ -1551,26 +1562,21 @@ contract MintManager is
         uint256 mintFeeCap,
         address msgSender,
         address currency,
-        address _oracle,
         address salePaymentRecipient,
         bytes32 vectorId,
         uint256 mintFeeEtherValue,
-        bool isSaleFree
+        bool isSaleFree,
+        bool is1155
     ) private {
         if (mintFeeCap > 0) {
             if (currency != address(0)) {
                 // send erc20 mint fee cap to the mint fee oracle
                 // tx.origin instead of msgSender for referrals
-                IERC20(currency).transferFrom(tx.origin, _oracle, mintFeeCap);
+                IERC20(currency).transferFrom(tx.origin, _mintFeeOracle, mintFeeCap);
             }
-            uint256 creatorPayout = IMintFeeOracle(_oracle).processClassicVectorMintFeeCap{ value: mintFeeEtherValue }(
-                vectorId,
-                isSaleFree,
-                salePaymentRecipient,
-                currency,
-                mintFeeCap,
-                msgSender
-            );
+            uint256 creatorPayout = IMintFeeOracle(_mintFeeOracle).processClassicVectorMintFeeCap{
+                value: mintFeeEtherValue
+            }(vectorId, isSaleFree, salePaymentRecipient, currency, mintFeeCap, msgSender, is1155);
             if (creatorPayout != 0) {
                 emit CreatorRewardPayout(vectorId, currency, salePaymentRecipient, creatorPayout);
             }
