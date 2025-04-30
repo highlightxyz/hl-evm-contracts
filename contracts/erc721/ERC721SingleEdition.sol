@@ -137,8 +137,8 @@ contract ERC721SingleEdition is
             useMarketplaceFiltererRegistry
         );
 
-        IObservability(_observability).emitSingleEditionDeployed(address(this));
-        observability = IObservability(_observability);
+        IObservabilityV3(_observability).emitSingleEditionDeployed(address(this));
+        observability = IObservabilityV3(_observability);
     }
 
     /**
@@ -148,9 +148,6 @@ contract ERC721SingleEdition is
         uint256 editionId,
         address recipient
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -166,9 +163,6 @@ contract ERC721SingleEdition is
         address recipient,
         uint256 amount
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -183,9 +177,6 @@ contract ERC721SingleEdition is
         uint256 editionId,
         address[] memory recipients
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -200,9 +191,6 @@ contract ERC721SingleEdition is
         address[] memory recipients,
         uint256 amount
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -332,7 +320,6 @@ contract ERC721SingleEdition is
     /**
      * @notice Get URI for given edition id
      * @param editionId edition id to get uri for
-     * @return base64-encoded json metadata object
      */
     function editionURI(uint256 editionId) public view returns (string memory) {
         if (!_editionExists(editionId)) {
@@ -344,7 +331,6 @@ contract ERC721SingleEdition is
     /**
      * @notice Get URI for given token id
      * @param tokenId token id to get uri for
-     * @return base64-encoded json metadata object
      */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         if (!_exists(tokenId)) {
@@ -408,6 +394,25 @@ contract ERC721SingleEdition is
         _mint(recipient, _amount);
 
         return endAt;
+    }
+
+    /**
+     * @notice Hook called after transfers
+     * @param from Account token is being transferred from
+     * @param to Account token is being transferred to
+     * @param tokenId ID of token being transferred
+     */
+    function _afterTokenTransfers(address from, address to, uint256 tokenId) internal override {
+        address _manager = tokenManager(tokenId);
+        if (
+            from != address(0) &&
+            _manager != address(0) &&
+            IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)
+        ) {
+            IPostTransfer(_manager).postSafeTransferFrom(_msgSender(), from, to, tokenId, "");
+        }
+
+        observability.emitTransfer(from, to, tokenId);
     }
 
     /**

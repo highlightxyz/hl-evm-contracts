@@ -37,6 +37,12 @@ export const chainIds = {
   "base-sepolia": 84532,
   zora: 7777777,
   "zora-goerli": 999,
+  forma: 984122,
+  mantle: 5000,
+  scroll: 534352,
+  shape: 360,
+  cyber: 7560,
+  apechain: 33139,
 };
 
 function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
@@ -48,26 +54,42 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
 }
 
 export function getUrl(chain: keyof typeof chainIds): string {
-  if (chain === "arbitrum") {
+  if (chain === "sepolia") {
+    return "https://eth-sepolia.g.alchemy.com/v2/LSYm-RXgjtbS4f9z0UYHPrlMuJCiPds6";
+  } else if (chain === "arbitrum") {
     return "https://arb1.arbitrum.io/rpc";
   } else if (chain === "arbitrum-goerli") {
-    return "https://arbitrum-goerli-rpc.publicnode.com";
+    return "https://arb-goerli.g.alchemy.com/v2/jK7-UD3iCOzaFUqa2L_SVI7fkdzCYfwc";
   } else if (chain === "optimism") {
-    return "https://optimism.llamarpc.com";
+    return "https://opt-mainnet.g.alchemy.com/v2/XtgT_4vf4xad9To3EOhQpH_7i62hYhKD";
   } else if (chain === "optimism-goerli") {
-    return "https://optimism-goerli-rpc.publicnode.com";
+    return "https://opt-goerli.g.alchemy.com/v2/COI6ezi-VSOBEQIMKbX5sImZ_mYy6urr";
   } else if (chain === "base") {
-    return "https://mainnet.base.org";
+    return "https://base-mainnet.g.alchemy.com/v2/L5pIErGfhV9Wu5v1pTeuY2zGuVFwh9hL";
   } else if (chain === "base-goerli") {
     return "https://base-goerli.public.blastapi.io";
   } else if (chain === "zora") {
-    return "https://rpc.zora.co";
+    return "https://rpc.zora.energy";
   } else if (chain === "zora-goerli") {
-    return "https://testnet.rpc.zora.co";
+    return "https://testnet.rpc.zora.energy";
   } else if (chain === "polygon-mainnet") {
     return "https://polygon-rpc.com/";
   } else if (chain === "base-sepolia") {
-    return "https://base-sepolia.blockpi.network/v1/rpc/public	";
+    return "https://base-sepolia.g.alchemy.com/v2/Mf1KFRcyOSLNgnlQKitNTP0pgYvdyGx4";
+  } else if (chain === "forma") {
+    return "https://rpc.forma.art";
+  } else if (chain === "mantle") {
+    return "https://rpc-moon.mantle.xyz/v1/<apikey>";
+  } else if (chain === "scroll") {
+    return "https://rpc.scroll.io";
+  } else if (chain === "shape") {
+    return "https://shape-mainnet.g.alchemy.com/v2/<apikey>
+  } else if (chain === "cyber") {
+    return "https://cosmological-thrilling-spree.cyber-mainnet.quiknode.pro/<apikey>";
+  } else if (chain === "mainnet") {
+    return "https://eth-mainnet.g.alchemy.com/v2/<apikey>";
+  } else if (chain === "apechain") {
+    return "https://apechain-mainnet.g.alchemy.com/v2/<apikey>";
   } else {
     return "https://" + chain + ".infura.io/v3/" + infuraApiKey;
   }
@@ -91,6 +113,12 @@ const config: HardhatUserConfig = {
       "base-sepolia": process.env.BASESCAN_API_KEY || "",
       zora: process.env.ZORASCAN_API_KEY || "",
       "zora-goerli": process.env.ZORASCAN_API_KEY || "",
+      forma: "abc",
+      mantle: process.env.MANTLESCAN_API_KEY || "",
+      scroll: process.env.SCROLLSCAN_API_KEY || "",
+      shape: process.env.SHAPESCAN_API_KEY || "",
+      cyber: process.env.CYBERSCAN_API_KEY || "",
+      apechain: process.env.APESCAN_API_KEY || "",
     },
     customChains: [
       {
@@ -149,6 +177,54 @@ const config: HardhatUserConfig = {
           browserURL: "https://testnet.explorer.zora.co",
         },
       },
+      {
+        network: "forma",
+        chainId: 984122,
+        urls: {
+          apiURL: "https://explorer.forma.art/api",
+          browserURL: "https://explorer.forma.art",
+        },
+      },
+      {
+        network: "mantle",
+        chainId: 5000,
+        urls: {
+          browserURL: "https://mantlescan.xyz/",
+          apiURL: "https://api.mantlescan.xyz/api",
+        },
+      },
+      {
+        network: "scroll",
+        chainId: 534352,
+        urls: {
+          browserURL: "https://scrollscan.com/",
+          apiURL: "https://api.scrollscan.com/api",
+        },
+      },
+      {
+        network: "shape",
+        chainId: 360,
+        urls: {
+          browserURL: "https://shapescan.xyz/",
+          apiURL: "https://shapescan.xyz/api",
+        },
+      },
+      {
+        network: "cyber",
+        chainId: 7560,
+        urls: {
+          browserURL: "https://cyberscan.co/",
+          apiURL: "https://api.socialscan.io/cyber/v1/explorer/command_api/contract",
+        },
+      },
+      {
+        network: "apechain",
+        chainId: 33139,
+        urls: {
+          browserURL: "https://apescan.io/",
+          apiURL: "https://api.apescan.io/api",
+        },
+      },
     ],
   },
   gasReporter: {
@@ -180,6 +256,12 @@ const config: HardhatUserConfig = {
     "base-sepolia": getChainConfig("base-sepolia"),
     zora: getChainConfig("zora"),
     "zora-goerli": getChainConfig("zora-goerli"),
+    forma: getChainConfig("forma"),
+    mantle: getChainConfig("mantle"),
+    scroll: getChainConfig("scroll"),
+    shape: getChainConfig("shape"),
+    cyber: getChainConfig("cyber"),
+    apechain: getChainConfig("apechain"),
   },
   paths: {
     artifacts: "./artifacts",

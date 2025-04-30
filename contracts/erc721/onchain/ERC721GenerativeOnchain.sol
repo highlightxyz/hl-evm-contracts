@@ -24,8 +24,8 @@ contract ERC721GenerativeOnchain is ERC721GeneralSequenceBase, OnchainFileStorag
 
     /**
      * @notice Initialize the contract
+     * @param creator Creator/owner of contract
      * @param data Data to initialize the contract
-     * @ param creator Creator/owner of contract
      * @ param _contractURI Contract metadata
      * @ param defaultRoyalty Default royalty object for contract (optional)
      * @ param _defaultTokenManager Default token manager for contract (optional)
@@ -39,9 +39,8 @@ contract ERC721GenerativeOnchain is ERC721GeneralSequenceBase, OnchainFileStorag
      * @ param useMarketplaceFiltererRegistry Denotes whether to use marketplace filterer registry
      * @param _observability Observability contract address
      */
-    function initialize(bytes calldata data, address _observability) external initializer {
+    function initialize(address creator, bytes memory data, address _observability) external initializer {
         (
-            address creator,
             string memory _contractURI,
             IRoyaltyManager.Royalty memory defaultRoyalty,
             address _defaultTokenManager,
@@ -56,7 +55,6 @@ contract ERC721GenerativeOnchain is ERC721GeneralSequenceBase, OnchainFileStorag
         ) = abi.decode(
                 data,
                 (
-                    address,
                     string,
                     IRoyaltyManager.Royalty,
                     address,
@@ -80,8 +78,8 @@ contract ERC721GenerativeOnchain is ERC721GeneralSequenceBase, OnchainFileStorag
         _minters.add(initialMinter);
         contractURI = _contractURI;
         _generativeCodeURI = _codeURI;
-        IObservability(_observability).emitGenerativeSeriesDeployed(address(this));
-        observability = IObservability(_observability);
+        IObservabilityV3(_observability).emitGenerativeSeriesDeployed(address(this));
+        observability = IObservabilityV3(_observability);
 
         if (bytes(newBaseURI).length > 0) {
             _setBaseURI(newBaseURI);
@@ -96,6 +94,19 @@ contract ERC721GenerativeOnchain is ERC721GeneralSequenceBase, OnchainFileStorag
 
     function generativeCodeUri() external view returns (string memory) {
         return _generativeCodeURI;
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Internal function without access restriction.
+     */
+    function _transferOwnership(address newOwner) internal override {
+        /*
+        if (address(observability) != address(0)) {
+            observability.emitOwnershipTransferred(owner(), newOwner);
+        }
+        */
+        super._transferOwnership(newOwner);
     }
 
     /**

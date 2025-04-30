@@ -11,6 +11,7 @@ import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/O
 import "../utils/FullMath.sol";
 import "../utils/IUniswapV3PoolState.sol";
 import "./referrals/IReferralManagerView.sol";
+import "../erc1155/interfaces/IERC1155Standard.sol";
 
 /**
  * @title MintManager's mint fee oracle
@@ -112,6 +113,12 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
      * @notice Backup referral manager
      */
     address private _backupRankedAuctionMechanic;
+
+    /**
+     * @notice Custom mint fee (vector + user)
+     * @dev A custom mint fee implies a value greater than 0, to make a mint fee free, use subsidizedMintConfig
+     */
+    mapping(bytes32 => uint256) private _customMintFee;
 
     /**
      * @notice Emitted when a referrer is paid out a portion of the mint fee
@@ -242,6 +249,14 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
     }
 
     /**
+     * @notice Set custom mint fee for a mint config (vector + sender)
+     */
+    function setCustomMintFee(bytes32 vectorId, address minter, uint256 customMintFee) external onlyOwner {
+        bytes32 mintConfig = _encodeMintConfig(vectorId, minter);
+        _customMintFee[mintConfig] = customMintFee;
+    }
+
+    /**
      * @notice Withdraw native gas token owed to platform
      */
     function withdrawNativeGasToken(uint256 amountToWithdraw, address payable recipient) external onlyOwner {
@@ -268,7 +283,8 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
         address vectorPaymentRecipient,
         address currency,
         uint256 amount,
-        address minter
+        address minter,
+        bool is1155
     ) external payable onlyMintManager returns (uint256) {
         if (currency == address(0)) {
             if (msg.value != amount) {
@@ -281,12 +297,9 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
             uint256 referralPayout = (amount * 10) / 100;
             // get referrer via referral manager
             address referrer = IReferralManagerView(referralManager).getCurrentReferrer(vectorId);
-            if (referrer == address(0)) {
-                _revert(InvalidReferrer.selector);
-            }
 
-            // only send referral if minter wasn't referrer
-            if (referrer != tx.origin) {
+            // only send referral if minter wasn't referrer and if referrer wasn't zero address
+            if (referrer != address(0) && referrer != tx.origin) {
                 if (currency == address(0)) {
                     (bool sentToRecipient, ) = payable(referrer).call{ value: referralPayout }("");
                     if (!sentToRecipient) {
@@ -301,7 +314,7 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
         }
 
         if (payoutCreatorReward) {
-            uint256 creatorPayout = amount / 2;
+            uint256 creatorPayout = is1155 ? ((amount * 8) / 10) : amount / 2;
             if (currency == address(0)) {
                 (bool sentToRecipient, ) = vectorPaymentRecipient.call{ value: creatorPayout }("");
                 if (!sentToRecipient) {
@@ -326,15 +339,17 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
         bytes32 vectorId,
         uint256 numToMint,
         address minter,
-        address currency
-    ) external view returns (uint256) {
+        address currency,
+        address collectionContract
+    ) external view returns (uint256, bool) {
+        bool is1155 = _is1155(collectionContract);
         if (_isFeeSubsidized(vectorId, minter)) {
-            return 0;
+            return (0, is1155);
         }
         if (currency == address(0)) {
-            return (block.chainid == 137 ? 2265000000000000000 : 800000000000000) * numToMint;
+            return (_resolveNonSubsidizedMintFee(vectorId, minter, _nativeGasTokenMintFee(is1155)) * numToMint, is1155);
         } else {
-            return _getClassicVectorERC20MintFeeCap(currency, numToMint);
+            return (_getClassicVectorERC20MintFeeCap(currency, numToMint, is1155), is1155);
         }
     }
 
@@ -345,12 +360,15 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
         bytes32 mechanicVectorId,
         uint32 numToMint,
         address mechanic,
-        address minter
+        address minter,
+        address collectionContract
     ) external view returns (uint256) {
         if (_isMintFeeWaivedMechanic(mechanic) || _isFeeSubsidized(mechanicVectorId, minter)) {
             return 0;
         } else {
-            return (block.chainid == 137 ? 2265000000000000000 : 800000000000000) * uint256(numToMint);
+            return
+                _resolveNonSubsidizedMintFee(mechanicVectorId, minter, _nativeGasTokenMintFee(collectionContract)) *
+                uint256(numToMint);
         }
     }
 
@@ -372,9 +390,19 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
             _revert(InvalidVectorType.selector);
         }
         if (_vector.currency != address(0)) {
-            return (_getClassicVectorERC20MintFeeCap(_vector.currency, numToMint), _vector.currency);
+            return (
+                _getClassicVectorERC20MintFeeCap(_vector.currency, numToMint, _vector.contractAddress),
+                _vector.currency
+            );
         } else {
-            return ((block.chainid == 137 ? 2265000000000000000 : 800000000000000) * uint256(numToMint), address(0));
+            return (
+                _resolveNonSubsidizedMintFee(
+                    bytes32(vectorId),
+                    minter,
+                    _nativeGasTokenMintFee(_vector.contractAddress)
+                ) * uint256(numToMint),
+                address(0)
+            );
         }
     }
 
@@ -385,16 +413,21 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
         bytes32 vectorId,
         uint256 numToMint,
         address minter,
-        address currency
+        address currency,
+        address collectionContract
     ) external view returns (uint256, address) {
         if (_isFeeSubsidized(vectorId, minter)) {
             return (0, currency);
         }
         if (currency != address(0)) {
-            return (_getClassicVectorERC20MintFeeCap(currency, numToMint), currency);
+            return (_getClassicVectorERC20MintFeeCap(currency, numToMint, collectionContract), currency);
         }
 
-        return ((block.chainid == 137 ? 2265000000000000000 : 800000000000000) * uint256(numToMint), address(0));
+        return (
+            _resolveNonSubsidizedMintFee(vectorId, minter, _nativeGasTokenMintFee(collectionContract)) *
+                uint256(numToMint),
+            address(0)
+        );
     }
 
     /**
@@ -414,7 +447,11 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
             return (0, address(0));
         }
 
-        return ((block.chainid == 137 ? 2265000000000000000 : 800000000000000) * uint256(numToMint), address(0));
+        return (
+            _resolveNonSubsidizedMintFee(vectorId, minter, _nativeGasTokenMintFee(_mechanicMetadata.contractAddress)) *
+                uint256(numToMint),
+            address(0)
+        );
     }
 
     /**
@@ -439,7 +476,29 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
      * @param minter Original minter address
      */
     function _isFeeSubsidized(bytes32 vectorId, address minter) private view returns (bool) {
-        return _subsidizedMintConfig[_encodeMintConfig(vectorId, minter)];
+        return
+            _subsidizedMintConfig[_encodeMintConfig(vectorId, minter)] ||
+            _subsidizedMintConfig[_encodeMintConfig(vectorId, 0x000000000000000000000000000000000000dEaD)]; // meaning subsidized for all minters
+    }
+
+    /**
+     * @notice Return mint fee for a vector that hasn't been subsidized
+     * @param vectorId ID of vector
+     * @param minter Original minter address
+     * @param defaultMintFee Default mint fee for the chain
+     */
+    function _resolveNonSubsidizedMintFee(
+        bytes32 vectorId,
+        address minter,
+        uint256 defaultMintFee
+    ) private view returns (uint256) {
+        uint256 minterSpecificFee = _customMintFee[_encodeMintConfig(vectorId, minter)];
+        if (minterSpecificFee > 0) {
+            return minterSpecificFee;
+        } else {
+            uint256 globalFee = _customMintFee[_encodeMintConfig(vectorId, 0x000000000000000000000000000000000000dEaD)];
+            return globalFee > 0 ? globalFee : defaultMintFee;
+        }
     }
 
     /**
@@ -451,16 +510,35 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
         return keccak256(abi.encodePacked(vectorId, minter));
     }
 
-    function _getClassicVectorERC20MintFeeCap(address currency, uint256 numToMint) private view returns (uint256) {
+    function _getClassicVectorERC20MintFeeCap(
+        address currency,
+        uint256 numToMint,
+        address collectionContract
+    ) private view returns (uint256) {
         ERC20Config memory config = _allowlistedERC20s[currency];
+        uint256 divisor = _is1155(collectionContract) ? 2 : 1;
         if (config.baseMintFee != 0) {
-            return config.baseMintFee * numToMint;
+            return (config.baseMintFee / divisor) * numToMint;
         } else if (config.realTimeOracle != address(0)) {
             (uint160 sqrtPriceX96, , , , , , ) = IUniswapV3PoolState(config.realTimeOracle).slot0();
-            return
-                (block.chainid == 137 ? 2265000000000000000 : 800000000000000) *
-                sqrtPriceX96ToUint(sqrtPriceX96) *
-                numToMint;
+            return _nativeGasTokenMintFee(collectionContract) * sqrtPriceX96ToUint(sqrtPriceX96) * numToMint;
+        } else {
+            _revert(InvalidERC20.selector);
+        }
+    }
+
+    function _getClassicVectorERC20MintFeeCap(
+        address currency,
+        uint256 numToMint,
+        bool is1155
+    ) private view returns (uint256) {
+        ERC20Config memory config = _allowlistedERC20s[currency];
+        uint256 divisor = is1155 ? 2 : 1;
+        if (config.baseMintFee != 0) {
+            return (config.baseMintFee / divisor) * numToMint;
+        } else if (config.realTimeOracle != address(0)) {
+            (uint160 sqrtPriceX96, , , , , , ) = IUniswapV3PoolState(config.realTimeOracle).slot0();
+            return _nativeGasTokenMintFee(is1155) * sqrtPriceX96ToUint(sqrtPriceX96) * numToMint;
         } else {
             _revert(InvalidERC20.selector);
         }
@@ -470,7 +548,7 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
 
     function _isMintFeeWaivedMechanic(address mechanic) private view returns (bool) {
         // RAM, DDAM
-        // TODO: add gasless mechanic
+        // we don't hit mint fee oracle in case of gasless mechanic
         if (block.chainid == 1) {
             return
                 mechanic == 0xDFEe0Ed4A217F37b3FA87624eE00fe5685bDc509 ||
@@ -503,6 +581,38 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
             return
                 mechanic == 0x9958F83F383CA150BB2252B4275D3e3051be469F ||
                 mechanic == 0x4821B6e9aC0CCC590acCe2442bb6BB32388C1CB7;
+        } else if (block.chainid == 984122) {
+            return
+                mechanic == 0x5AA1C7F5f9d2e7F2664d3C1f454560C6DaBED6c8 ||
+                mechanic == 0x9c602CE508E41ccAF2cF997D93A9FbE0166D8aE6;
+        } else if (block.chainid == 5000) {
+            return
+                mechanic == 0xd8f0A3AA4067be3D70a5B46A795Ad9dF9E65Cd3C ||
+                mechanic == 0xaF4d61951A425BA60ac1E7EA6d51e92d2F4748E4;
+        } else if (block.chainid == 534352) {
+            return
+                mechanic == 0xF6C67C7bb7018E4609d571023196A4682FdA6F2f ||
+                mechanic == 0xE019FF8033d9C761985A3EE1fa5d97Cc9Cf6d5c0;
+        } else if (block.chainid == 324) {
+            return
+                mechanic == 0x89640D083837d9487e4E1c2122aCc1adaf0E5654 ||
+                mechanic == 0xc1c701D7A488b46fF095Ec4094DDd5aB78C9421E;
+        } else if (block.chainid == 360) {
+            return
+                mechanic == 0x8c23711a0536397C261Bf83Ec474B9aAf05C549B ||
+                mechanic == 0xd8f0A3AA4067be3D70a5B46A795Ad9dF9E65Cd3C;
+        } else if (block.chainid == 7560) {
+            return
+                mechanic == 0x8c23711a0536397C261Bf83Ec474B9aAf05C549B ||
+                mechanic == 0x526fe4Ed6f23f34a97015E41f469fD54f37036f5;
+        } else if (block.chainid == 543210) {
+            return
+                mechanic == 0x99F80FF8C7607E8E6b6A998E9389DcaEc97BA9c9 ||
+                mechanic == 0xD5B168f790582255c9c82cB65193A009cD6C2c67;
+        } else if (block.chainid == 33139) {
+            return
+                mechanic == 0xF76d8B2aFB77f663d420F827fCa7bCc1b419515F ||
+                mechanic == 0xF6C67C7bb7018E4609d571023196A4682FdA6F2f;
         }
 
         return
@@ -531,8 +641,60 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
             return 0x4619b9673241eB41B642Dc04371100d238b73fFE;
         } else if (block.chainid == 11155111) {
             return 0xd33c1bE264bb98F86e18CD816D5fd44e97cb7163;
+        } else if (block.chainid == 984122) {
+            return 0x9491aA1c2f46319A645637c4105f4199B251e4dD;
+        } else if (block.chainid == 5000) {
+            return 0xAFfC7C9BfB48FFD2a580e1a0d36f8cc7D45Dcb58;
+        } else if (block.chainid == 534352) {
+            return 0x4821B6e9aC0CCC590acCe2442bb6BB32388C1CB7;
+        } else if (block.chainid == 324) {
+            return 0x4b189127A784de57bDcDb59E0Ab18086e0b7a1BC;
+        } else if (block.chainid == 360) {
+            return 0xe2CE42156E8456704fbEA047419404858E9324Af;
+        } else if (block.chainid == 7560) {
+            return 0xF76d8B2aFB77f663d420F827fCa7bCc1b419515F;
+        } else if (block.chainid == 543210) {
+            return 0x24d7F95783F5F5Ed37BCbbE303A14bE0627DFC2e;
+        } else if (block.chainid == 33139) {
+            return 0xaF4d61951A425BA60ac1E7EA6d51e92d2F4748E4;
         } else {
             return _backupReferralManager;
+        }
+    }
+
+    /**
+     * @notice Get the native gas token mint fee for the chain
+     */
+    function _nativeGasTokenMintFee(address collectionContract) private view returns (uint256) {
+        uint256 divisor = _is1155(collectionContract) ? 2 : 1;
+        if (block.chainid == 137) {
+            return 2265000000000000000 / divisor;
+        } else if (block.chainid == 984122) {
+            return 500000000000000000 / divisor;
+        } else if (block.chainid == 5000) {
+            return 3500000000000000000 / divisor;
+        } else if (block.chainid == 33139) {
+            return 2500000000000000000 / divisor;
+        } else {
+            return 800000000000000 / divisor;
+        }
+    }
+
+    /**
+     * @notice Get the native gas token mint fee for the chain
+     */
+    function _nativeGasTokenMintFee(bool is1155) private view returns (uint256) {
+        uint256 divisor = is1155 ? 2 : 1;
+        if (block.chainid == 137) {
+            return 2265000000000000000 / divisor;
+        } else if (block.chainid == 984122) {
+            return 500000000000000000 / divisor;
+        } else if (block.chainid == 5000) {
+            return 3500000000000000000 / divisor;
+        } else if (block.chainid == 33139) {
+            return 2500000000000000000 / divisor;
+        } else {
+            return 800000000000000 / divisor;
         }
     }
 
@@ -542,5 +704,18 @@ contract MintFeeOracle is UUPSUpgradeable, OwnableUpgradeable {
      */
     function sqrtPriceX96ToUint(uint160 sqrtPriceX96) private pure returns (uint256) {
         return FullMath.mulDiv(uint256(sqrtPriceX96) * uint256(sqrtPriceX96), ETH_WEI, FULL_MATH_SHIFT);
+    }
+
+    /**
+     * @notice Return if collection is an ERC1155 contract
+     */
+    function _is1155(address collectionContract) private view returns (bool) {
+        try IERC1155Standard(collectionContract).highlightContractStandardHash() returns (bytes32 standardHash) {
+            return standardHash == 0x3a9654d81ac4dafbb9a2fb1cd3efa3de2783ae40b06b17a456bf5922ed02a3a7;
+        } catch Error(string memory reason) {
+            return false;
+        } catch {
+            return false;
+        }
     }
 }

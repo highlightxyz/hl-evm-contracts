@@ -272,6 +272,7 @@ contract ERC721Upgradeable is
         _owners[tokenId] = to;
 
         emit Transfer(address(0), to, tokenId);
+        _afterTokenTransfers(address(0), to, tokenId);
     }
 
     /**

@@ -1,7 +1,7 @@
 {
   "name": "evm-contracts",
-  "version": "1.5.0",
-  "description": "Highlight EVM Smart Contract Protocol",
+  "version": "1.0.0",
+  "description": "Highlight EVM Smart Contract Protocols",
   "main": "index.js",
   "repository": "git@github.com:highlightxyz/evm-contracts.git",
   "author": "Ishan <ishan@highlight.xyz>",
@@ -14,6 +14,7 @@
     "@ethersproject/bignumber": "^5.6.2",
     "@ethersproject/bytes": "^5.6.1",
     "@ethersproject/providers": "^5.6.8",
+    "@gelatonetwork/relay-context": "^3.2.0",
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.2",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.9",
     "@nomicfoundation/hardhat-toolbox": "^1.0.2",
@@ -36,7 +37,7 @@
     "dotenv": "^16.0.1",
     "eslint": "^8.20.0",
     "eslint-config-prettier": "^8.5.0",
-    "ethers": "^6.13.0",
+    "ethers": "^5.7.1",
     "fs-extra": "^10.1.0",
     "hardhat": "^2.10.1",
     "hardhat-gas-reporter": "^1.0.8",
@@ -84,12 +85,18 @@
     "reformat:system-contracts-config": "node reformatSystemContractsConfig.js && yarn prettier"
   },
   "dependencies": {
+    "@bundlr-network/client": "^0.11.17",
     "@chainlink/contracts": "^0.8.0",
+    "@ethereum-attestation-service/eas-contracts": "^1.7.1",
+    "@gelatonetwork/relay-sdk": "^5.5.6",
+    "@highlightxyz/libnode": "file:.yalc/@highlightxyz/libnode",
     "@manifoldxyz/creator-core-solidity": "^3.0.0",
-    "@nomicfoundation/hardhat-ethers": "^3.0.6",
     "@openzeppelin/contracts-upgradeable": "^4.7.3",
-    "@typechain/ethers-v6": "^0.5.1",
     "@uniswap/v3-core": "^1.0.1",
+    "@zoralabs/openzeppelin-contracts-upgradeable": "^4.8.4",
+    "@zoralabs/protocol-rewards": "^1.2.4",
+    "@zoralabs/zora-1155-contracts": "^2.12.0",
+    "arweave": "^1.15.5",
     "axios": "^1.5.1",
     "csv-parse": "^5.5.1",
     "ethereum-multicall": "^2.24.0",
@@ -97,7 +104,10 @@
     "keccak256": "^1.0.6",
     "merkletreejs": "^0.2.32",
     "mime-types": "^2.1.35",
+    "multiformats": "^13.3.2",
     "sol-merger": "^4.1.1",
-    "split-file": "^2.3.0"
+    "split-file": "^2.3.0",
+    "typestub-ipfs-only-hash": "^4.0.0",
+    "viem": "^2.19.7"
   }
 }

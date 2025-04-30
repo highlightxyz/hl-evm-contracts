@@ -7,7 +7,7 @@ import "../utils/Ownable.sol";
 import "../utils/ERC2981/IERC2981Upgradeable.sol";
 import "../utils/ERC165/ERC165CheckerUpgradeable.sol";
 import "../metatx/ERC2771ContextUpgradeable.sol";
-import "../observability/IObservability.sol";
+import "../observability/IObservabilityV3.sol";
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -105,14 +105,9 @@ abstract contract ERC721Base is
     address public royaltyManager;
 
     /**
-     * @notice Freezes minting on smart contract forever
-     */
-    uint8 internal _mintFrozen;
-
-    /**
      * @notice Observability contract
      */
-    IObservability public observability;
+    IObservabilityV3 public observability;
 
     /**
      * @notice Emitted when minter is registered or unregistered
@@ -389,9 +384,6 @@ abstract contract ERC721Base is
      * @param _royaltyManager New royalty manager
      */
     function setRoyaltyManager(address _royaltyManager) external nonReentrant {
-        if (!_isValidRoyaltyManager(_royaltyManager)) {
-            _revert(InvalidManager.selector);
-        }
         address msgSender = _msgSender();
 
         address currentRoyaltyManager = royaltyManager;
@@ -429,16 +421,6 @@ abstract contract ERC721Base is
 
         emit RoyaltyManagerChanged(address(0));
         observability.emitRoyaltyManagerChanged(address(0));
-    }
-
-    /**
-     * @notice Freeze mints on contract forever
-     */
-    function freezeMints() external onlyOwner nonReentrant {
-        _mintFrozen = 1;
-
-        emit MintsFrozen();
-        observability.emitMintsFrozen();
     }
 
     /**
@@ -509,14 +491,6 @@ abstract contract ERC721Base is
      */
     function _isValidTokenManager(address _tokenManager) internal view returns (bool) {
         return _tokenManager.supportsInterface(type(ITokenManager).interfaceId);
-    }
-
-    /**
-     * @notice Returns true if address is a valid royaltyManager
-     * @param _royaltyManager Royalty manager being checked
-     */
-    function _isValidRoyaltyManager(address _royaltyManager) internal view returns (bool) {
-        return _royaltyManager.supportsInterface(type(IRoyaltyManager).interfaceId);
     }
 
     /**

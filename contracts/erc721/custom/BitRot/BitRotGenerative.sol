@@ -52,10 +52,6 @@ contract BitRotGenerative is ERC721GenerativeOnchain {
      * @dev Update BitRot mint details
      */
     function mintOneToOneRecipient(address recipient) external override onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
-
         uint256 tempSupply = _nextTokenId();
         _requireLimitSupply(tempSupply);
 
@@ -74,9 +70,6 @@ contract BitRotGenerative is ERC721GenerativeOnchain {
      * @dev Update BitRot mint details
      */
     function mintAmountToOneRecipient(address recipient, uint256 amount) external override onlyMinter nonReentrant {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         uint256 tempSupply = _nextTokenId() - 1; // cache
 
         _mint(recipient, amount);

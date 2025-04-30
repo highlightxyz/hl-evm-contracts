@@ -68,8 +68,22 @@ contract MultipleEditionsDFS is Proxy {
         Address.functionDelegateCall(implementation_, abi.encodeWithSignature("initialize(bytes)", initializeData));
 
         // create edition
+        /* solhint-disable max-line-length */
         if (bytes(_editionUri).length > 0) {
-            if (mechanicVectorData.length > 0) {
+            if (mintVectorData.length > 0 && mechanicVectorData.length > 0) {
+                Address.functionDelegateCall(
+                    implementation_,
+                    abi.encodeWithSignature(
+                        "createEditionWithMechanicVectorAndPublicFixedPriceVector(string,uint256,address,(address,uint16),bytes,bytes)",
+                        _editionUri,
+                        editionSize,
+                        _editionTokenManager,
+                        editionRoyalty,
+                        mintVectorData,
+                        mechanicVectorData
+                    )
+                );
+            } else if (mechanicVectorData.length > 0) {
                 Address.functionDelegateCall(
                     implementation_,
                     abi.encodeWithSignature(

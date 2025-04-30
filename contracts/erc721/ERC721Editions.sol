@@ -297,9 +297,6 @@ contract ERC721Editions is
         uint256 editionId,
         address recipient
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -315,9 +312,6 @@ contract ERC721Editions is
         address recipient,
         uint256 amount
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -332,13 +326,9 @@ contract ERC721Editions is
         uint256 editionId,
         address[] memory recipients
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
-
         return _mintEditions(editionId, recipients, 1);
     }
 
@@ -350,9 +340,6 @@ contract ERC721Editions is
         address[] memory recipients,
         uint256 amount
     ) external onlyMinter nonReentrant returns (uint256) {
-        if (_mintFrozen == 1) {
-            _revert(MintFrozen.selector);
-        }
         if (!_editionExists(editionId)) {
             _revert(EditionDoesNotExist.selector);
         }
@@ -496,7 +483,6 @@ contract ERC721Editions is
     /**
      * @notice Get URI for given edition id
      * @param editionId edition id to get uri for
-     * @return base64-encoded json metadata object
      */
     function editionURI(uint256 editionId) public view returns (string memory) {
         if (!_editionExists(editionId)) {
@@ -508,7 +494,6 @@ contract ERC721Editions is
     /**
      * @notice Get URI for given token id
      * @param tokenId token id to get uri for
-     * @return base64-encoded json metadata object
      */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         if (!_exists(tokenId)) {
@@ -595,7 +580,11 @@ contract ERC721Editions is
         }
 
         address _manager = tokenManagerByTokenId(tokenId);
-        if (_manager != address(0) && IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)) {
+        if (
+            from != address(0) &&
+            _manager != address(0) &&
+            IERC165Upgradeable(_manager).supportsInterface(type(IPostTransfer).interfaceId)
+        ) {
             IPostTransfer(_manager).postSafeTransferFrom(msgSender, from, to, tokenId, "");
         }
 
@@ -687,8 +676,8 @@ contract ERC721Editions is
         }
         nextTokenId = 1;
         contractURI = _contractURI;
-        IObservability(_observability).emitMultipleEditionsDeployed(address(this));
-        observability = IObservability(_observability);
+        IObservabilityV3(_observability).emitMultipleEditionsDeployed(address(this));
+        observability = IObservabilityV3(_observability);
     }
 
     /**

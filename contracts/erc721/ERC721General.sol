@@ -13,7 +13,7 @@ import "./ERC721GeneralBase.sol";
  * @author highlight.xyz
  * @notice Generalized NFT smart contract
  */
-contract ERC721General is MetadataEncryption, ERC721GeneralBase {
+contract ERC721General is ERC721GeneralBase {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /**
@@ -63,8 +63,8 @@ contract ERC721General is MetadataEncryption, ERC721GeneralBase {
 
     /**
      * @notice Initialize the contract
+     * @param creator Creator/owner of contract
      * @param data Data to initialize the contract
-     * @ param creator Creator/owner of contract
      * @ param _contractURI Contract metadata
      * @ param defaultRoyalty Default royalty object for contract (optional)
      * @ param _defaultTokenManager Default token manager for contract (optional)
@@ -77,9 +77,8 @@ contract ERC721General is MetadataEncryption, ERC721GeneralBase {
      * @ param useMarketplaceFiltererRegistry Denotes whether to use marketplace filterer registry
      * @ param _observability Observability contract address
      */
-    function initialize(bytes calldata data) external initializer {
+    function initialize(address creator, bytes memory data) external initializer {
         (
-            address creator,
             string memory _contractURI,
             IRoyaltyManager.Royalty memory defaultRoyalty,
             address _defaultTokenManager,
@@ -94,7 +93,6 @@ contract ERC721General is MetadataEncryption, ERC721GeneralBase {
         ) = abi.decode(
                 data,
                 (
-                    address,
                     string,
                     IRoyaltyManager.Royalty,
                     address,
@@ -123,6 +121,17 @@ contract ERC721General is MetadataEncryption, ERC721GeneralBase {
             useMarketplaceFiltererRegistry,
             _observability
         );
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Internal function without access restriction.
+     */
+    function _transferOwnership(address newOwner) internal override {
+        if (address(observability) != address(0)) {
+            observability.emitOwnershipTransferred(owner(), newOwner);
+        }
+        super._transferOwnership(newOwner);
     }
 
     /**
@@ -162,8 +171,8 @@ contract ERC721General is MetadataEncryption, ERC721GeneralBase {
         // __MarketplaceFilterer__init__(useMarketplaceFiltererRegistry);
         _minters.add(initialMinter);
         contractURI = _contractURI;
-        IObservability(_observability).emitSeriesDeployed(address(this));
-        observability = IObservability(_observability);
+        IObservabilityV3(_observability).emitSeriesDeployed(address(this));
+        observability = IObservabilityV3(_observability);
 
         if (bytes(newBaseURI).length > 0) {
             _setBaseURI(newBaseURI);

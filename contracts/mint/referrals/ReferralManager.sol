@@ -113,13 +113,6 @@ contract ReferralManager is IReferralManagerView {
     /**
      * @notice Encode tx for referrer
      */
-    function _encodeTx(bytes32 vectorId, address txSender, uint256 blockNumber) private view returns (bytes32) {
-        return keccak256(abi.encodePacked(vectorId, txSender, blockNumber));
-    }
-
-    /**
-     * @notice Encode tx for referrer
-     */
     function _encodeCurrentTx(bytes32 vectorId) private view returns (bytes32) {
         return _encodeTx(vectorId, tx.origin, block.number);
     }
@@ -145,8 +138,27 @@ contract ReferralManager is IReferralManagerView {
             return 0x41cbab1028984A34C1338F437C726de791695AE8;
         } else if (block.chainid == 11155111) {
             return 0xd698911B1Bb2a9c849Bf5e2604aF110766f396b6;
+        } else if (block.chainid == 984122) {
+            return 0xa594011DB733d09C1EEB347fb2f7dFc99d118ba1;
+        } else if (block.chainid == 5000) {
+            return 0xcD1127AC7Ae10A63E44ca3e3a8238D2d2cf1D455;
+        } else if (block.chainid == 534352) {
+            return 0x8087039152c472Fa74F47398628fF002994056EA;
+        } else if (block.chainid == 324) {
+            return 0xaDe57E0102bA4AC00E2f773EA810818BDa49cE23;
+        } else if (block.chainid == 360 || block.chainid == 7560 || block.chainid == 33139) {
+            return 0x3AD45858a983D193D98BD4e6C14852a4cADcDBeA;
+        } else if (block.chainid == 543210) {
+            return 0x98374013B4F96b64f8cB37E0aC8E3ee8dC390A2a;
         } else {
             return _backupMintManager;
         }
+    }
+
+    /**
+     * @notice Encode tx for referrer
+     */
+    function _encodeTx(bytes32 vectorId, address txSender, uint256 blockNumber) private pure returns (bytes32) {
+        return keccak256(abi.encodePacked(vectorId, txSender, blockNumber));
     }
 }
